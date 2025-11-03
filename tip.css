@@ -1,0 +1,71 @@
+.vecTip-container {
+    position: fixed;
+    width: 400px;
+    height: 200px;
+    background-color: white;
+    z-index: 10000;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.vecTip-ele
+{
+    position: relative;
+}
+.vecTip-ele::before {
+    content: "";
+    position: absolute;
+    top: -0%;
+    right: 0%;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: royalblue;
+}
+
+/* {
+        selector: '#target',
+            instruction: 'Click here to submit the form',
+            offsetX: 10,
+            offsetY: 10
+    }
+
+    ,
+    {
+    selector: '#target2',
+        instruction: 'This is the main heading',
+        offsetX: 0,
+        offsetY: 15
+}
+
+,
+{
+selector: '#target3',
+    instruction: 'Click here to submit the form',
+    offsetX: 10,
+    offsetY: 10
+}
+
+,
+{
+selector: '#target4',
+    instruction: 'This is the main heading',
+    offsetX: 0,
+    offsetY: 15
+}
+
+,
+{
+selector: '#target5',
+    instruction: 'Click here to submit the form',
+    offsetX: 10,
+    offsetY: 10
+}
+
+,
+{
+selector: '#target6',
+    instruction: 'This is the main heading',
+    offsetX: 0,
+    offsetY: 15
+} */

@@ -1,0 +1,120 @@
+/* Tutorial Spotlight Styles */
+
+#tutorial-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    z-index: 9998;
+    display: none;
+}
+
+#tutorial-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+#tutorial-spotlight {
+    position: fixed;
+    border: 3px solid #4CAF50;
+    border-radius: 8px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
+    pointer-events: none;
+    z-index: 9999;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent;
+}
+
+#tutorial-box {
+    position: fixed;
+    background: white;
+    border: 2px solid #4CAF50;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    max-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    display: none;
+    animation: slideIn 0.4s ease;
+}
+
+#tutorial-overlay.active~#tutorial-box {
+    display: block;
+}
+
+#tutorial-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+#tutorial-action-icon {
+    font-size: 20px;
+    min-width: 24px;
+    flex-shrink: 0;
+}
+
+#tutorial-instruction {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+    font-weight: 500;
+    flex: 1;
+}
+
+#tutorial-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+#tutorial-buttons button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#tutorial-next {
+    background: #4CAF50;
+    color: white;
+}
+
+#tutorial-next:hover {
+    background: #45a049;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+#tutorial-skip {
+    background: #f0f0f0;
+    color: #666;
+}
+
+#tutorial-skip:hover {
+    background: #e0e0e0;
+    transform: translateY(-1px);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
