@@ -158,6 +158,10 @@
       tutorialOverlay.classList.remove('active');
       highlightSpotlight.style.display = 'none';
       tutorialBox.style.display = 'none';
+
+      chrome.runtime.sendMessage({
+        type: "FINISH_PROCESS"
+      }).catch(() => {});
     };
 
     showStep(0);

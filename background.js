@@ -1,6 +1,11 @@
 // Background Script - Tutorial State Manager
 console.log("Background script running");
 
+// background.js (service worker)
+importScripts('bg-navigation.js'); // legacy-style import for worker scope
+// or you can dynamically `fetch`+`eval` or combine code during build
+
+
 let tutorialState = {
   isActive: false,
   currentPage: 0,
@@ -147,4 +152,67 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       totalPages: tutorialState.steps.length
     });
   }
+});
+
+let lastClickSelector = null;
+
+// Store last click selector when a click occurs
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "click_record") {
+    lastClickSelector = msg.selector || null;
+    return;
+  }
+
+  if (msg.type === "get_last_click") {
+    sendResponse(lastClickSelector);
+    // clear it so it doesn’t persist forever
+    lastClickSelector = null;
+    return true;
+  }
+
+if (msg.type === "url_change") {
+  lastClickSelector =  msg.selector
+    const newUrl = msg.new_url || "";
+    // previous page index (the page the user came from)
+    const prevIndex = Math.max(0, tutorialState.currentPage - 1);
+    const prevPageSteps = tutorialState.steps[prevIndex] || [];
+    // infer expected selector for the "last thing the user should do" on the previous page:
+    // we assume the last step in prevPageSteps describes that action
+    let expectedSelector;
+    if (Array.isArray(prevPageSteps) && prevPageSteps.length) {
+        const lastStep = prevPageSteps[prevPageSteps.length - 1];
+        expectedSelector = lastStep.selector || lastStep.expectedSelector || lastStep.target;
+    }
+
+    const selectorMatches = lastClickSelector && expectedSelector
+        ? lastClickSelector === expectedSelector
+        : false;
+
+        if (!selectorMatches && lastClickSelector != null) {
+          chrome.scripting.executeScript({
+            target: { tabId: sender.tab.id },
+            files: ['toast.js']
+          }, () => {
+            chrome.tabs.sendMessage(sender.tab.id, {
+              type: "showTutorialInterruptedToast",
+            });
+          });
+        } else {
+          if (sender && sender.tab && sender.tab.id !== undefined) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+            type: "URL_CHANGE_CHECK_RESULT",
+            expectedSelector: expectedSelector || null,
+            lastClickSelector,
+            selectorMatches,
+        });
+    }
+        }
+
+    // notify the content script (or popup) about the check result
+    
+
+    // clear lastClickSelector so it won't persist across unrelated actions
+    lastClickSelector = null;
+    return;
+}
 });

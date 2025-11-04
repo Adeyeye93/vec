@@ -15,7 +15,7 @@ const tutorialSteps = [
       action: 'hover'
     },
     {
-      selector: '#target3',
+      selector: 'a#target3 > button:nth-child(1)',
       instruction: 'Now fill in the required information',
       action: 'input',
       will_change_page: true
