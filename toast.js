@@ -1,9 +1,4 @@
-// Listen for messages from background script
-// chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-//   if (request.action === 'showTutorialInterruptedToast') {
-    
-//   }
-// });
+
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "showTutorialInterruptedToast") {
@@ -156,19 +151,25 @@ function removeToast() {
 function handleContinue(event) {
   console.log('Continue button clicked');
   removeToast();
-  // TODO: Add your continue action here
+  chrome.runtime.sendMessage({
+        type: "CONTINUE_PROCESS"
+      }).catch(() => {});
 }
 
 // Event listener for Restart button
 function handleRestart(event) {
   console.log('Restart button clicked');
   removeToast();
-  // TODO: Add your restart action here
+  chrome.runtime.sendMessage({
+        type: "RESTART_PROCESS"
+      }).catch(() => {});
 }
 
 // Event listener for Break Leave button
 function handleBreak(event) {
   console.log('Break Leave button clicked');
   removeToast();
-  // TODO: Add your break/leave action here
+  chrome.runtime.sendMessage({
+        type: "BREAK_PROCESS"
+      }).catch(() => {});
 }

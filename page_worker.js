@@ -57,6 +57,7 @@
         new_url: location.href,
         selector: selector || null,
         page_load: isPageLoad,
+        lastUrl: lastUrl,
       });
     });
   }

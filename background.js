@@ -1,10 +1,11 @@
 // Background Script - Tutorial State Manager
 console.log("Background script running");
-
+addToStorage("Page", 0).catch(() => {});
+var Di_step = null
 // background.js (service worker)
 importScripts('bg-navigation.js'); // legacy-style import for worker scope
 // or you can dynamically `fetch`+`eval` or combine code during build
-
+var last_url = "";
 
 let tutorialState = {
   isActive: false,
@@ -21,12 +22,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     tutorialState.currentPage = 0;
     tutorialState.completedPages.clear();
 
+    const currentPageSteps = (Di_step == null)
+          ? (tutorialState.steps?.[tutorialState.currentPage] ?? [])
+          : Di_step;
+
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       chrome.scripting.executeScript({
         target: { tabId: tabs[0].id },
         files: ['Guide.js']
       }, () => {
-        const currentPageSteps = tutorialState.steps[tutorialState.currentPage] || [];
         
         // Send tutorial steps
         chrome.tabs.sendMessage(tabs[0].id, {
@@ -44,7 +48,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     });
 
-    sendResponse({ status: "Tutorial started" });
   }
 });
 
@@ -53,6 +56,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "PAGE_WILL_CHANGE") {
     tutorialState.completedPages.add(tutorialState.currentPage);
     tutorialState.currentPage++;
+    updateStorage("Page", 1)
 
     if (tutorialState.currentPage < tutorialState.steps.length) {
       console.log(`Moving to page ${tutorialState.currentPage + 1}`);
@@ -170,7 +174,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-if (msg.type === "url_change") {
+ if (msg.type === "url_change" && sender.tab && sender.tab.id) {
   lastClickSelector =  msg.selector
     const newUrl = msg.new_url || "";
     // previous page index (the page the user came from)
@@ -187,17 +191,19 @@ if (msg.type === "url_change") {
     const selectorMatches = lastClickSelector && expectedSelector
         ? lastClickSelector === expectedSelector
         : false;
+                  if (!selectorMatches && lastClickSelector != null && tutorialState.isActive ) {
 
-        if (!selectorMatches && lastClickSelector != null) {
           chrome.scripting.executeScript({
             target: { tabId: sender.tab.id },
             files: ['toast.js']
           }, () => {
             chrome.tabs.sendMessage(sender.tab.id, {
               type: "showTutorialInterruptedToast",
+              lastClickSelector
             });
           });
         } else {
+          last_url = msg.lastUrl || "";
           if (sender && sender.tab && sender.tab.id !== undefined) {
         chrome.tabs.sendMessage(sender.tab.id, {
             type: "URL_CHANGE_CHECK_RESULT",
@@ -213,6 +219,225 @@ if (msg.type === "url_change") {
 
     // clear lastClickSelector so it won't persist across unrelated actions
     lastClickSelector = null;
-    return;
+    return; 
 }
+
+if (msg.type === "CONTINUE_PROCESS") {
+  console.log("Continuing tutorial process to URL:", last_url);
+  const targetUrl = last_url
+  const tabId = sender && sender.tab && sender.tab.id;
+  console.log(getFromStorage("Page"))
+
+  const handleNavigationAndSendDots = (id) => {
+    chrome.tabs.update(id, { url: targetUrl }, () => {
+      const onCompleted = async (details) => {
+        if (details.tabId === id && details.url === targetUrl) {
+          const pageSteps = tutorialState.steps[tutorialState.currentPage] || []; 
+
+           const currentPageSteps = tutorialState.steps[tutorialState.currentPage] || []; 
+           const lastOnly = currentPageSteps.slice(-1);
+           Di_step = lastOnly
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.scripting.executeScript({
+              target: { tabId: tabs[0].id },
+              files: ['Guide.js']
+            }, () => {
+              console.log("Sending last step only:", lastOnly);
+              // Send tutorial steps
+              // chrome.tabs.sendMessage(tabs[0].id, {
+              //   type: "LOAD_TUTORIAL",
+              //   pageSteps: lastOnly,
+              //   pageNumber: tutorialState.currentPage,
+              //   totalPages: tutorialState.steps.length
+              // });
+
+              // Setup page listeners immediately
+              chrome.tabs.sendMessage(tabs[0].id, {
+                type: "SETUP_PAGE_LISTENERS",
+                steps: currentPageSteps
+              });
+            });
+          });
+          chrome.webNavigation.onCompleted.removeListener(onCompleted);
+          sendResponse({ status: "navigated", url: targetUrl });
+        }
+      };
+      chrome.webNavigation.onCompleted.addListener(onCompleted);
+    });
+  };
+
+  if (tabId !== undefined) {
+    handleNavigationAndSendDots(tabId);
+  } else {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs[0]) {
+        handleNavigationAndSendDots(tabs[0].id);
+      } else {
+        sendResponse({ status: "error", message: "No active tab found." });
+      }
+    });
+  }
+
+  return true;
+}
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Background-safe storage using chrome.storage.local
+// Replace the content-script localStorage usage with this background script.
+// Use as a background/service-worker script (Manifest V3) or background page (MV2).
+
+// Add item to chrome.storage.local
+function addToStorage(key, value) {
+  return new Promise((resolve, reject) => {
+    try {
+      const payload = { [key]: value };
+      chrome.storage.local.set(payload, () => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        console.log(`Added to storage: ${key}`, value);
+        resolve(true);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// Remove item from chrome.storage.local
+function removeFromStorage(key) {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.storage.local.remove(key, () => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        console.log(`Removed from storage: ${key}`);
+        resolve(true);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// Get item from chrome.storage.local
+function getFromStorage(key) {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.storage.local.get([key], (result) => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        resolve(result.hasOwnProperty(key) ? result[key] : null);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// Update (set) item in chrome.storage.local
+function updateStorage(key, value) {
+  // For chrome.storage.local, set overrides existing entry.
+  if (key === 'Page' && (value === 1 || value === 0)) {
+   
+      getFromStorage(key)
+        .then(async (current) => {
+          const currentNum = typeof current === 'number' ? current : (Number.parseInt(current, 10) || 0);
+          const newValue = currentNum + (value === 1 ? 1 : -1);
+          await addToStorage(key, newValue);
+          console.log(newValue)
+          return newValue;
+        })
+  }
+}
+
+// Update specific property in stored object
+async function updateStorageProperty(key, property, value) {
+  const currentData = await getFromStorage(key);
+  const data = currentData == null ? {} : currentData;
+  if (typeof data !== 'object' || Array.isArray(data)) {
+    return Promise.reject(new Error('Cannot update property on non-object value'));
+  }
+  data[property] = value;
+  return await addToStorage(key, data);
+}
+
+// Clear all storage
+function clearAllStorage() {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.storage.local.clear(() => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        console.log('Cleared all storage');
+        resolve(true);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// Message listener (background)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  try {
+    const { action, key, value, property } = message;
+
+    const respond = (p) => {
+      p.then((res) => sendResponse({ success: true, data: res }))
+       .catch((err) => sendResponse({ success: false, error: err && err.message }));
+      return true; // keep channel open for async response
+    };
+
+    switch (action) {
+      case 'add':
+        return respond(addToStorage(key, value));
+
+      case 'remove':
+        return respond(removeFromStorage(key));
+
+      case 'get':
+        return respond(getFromStorage(key));
+
+      case 'update': {
+        // Special handling for Page increments/decrements
+        if (key === 'Page' && (value === 1 || value === 0)) {
+          return respond(
+            getFromStorage(key)
+              .then(async (current) => {
+                const currentNum = typeof current === 'number' ? current : (Number.parseInt(current, 10) || 0);
+                const newValue = currentNum + (value === 1 ? 1 : -1);
+                await updateStorage(key, newValue);
+                return newValue;
+              })
+          );
+        }
+        return respond(updateStorage(key, value));
+      }
+
+      case 'updateProperty':
+        return respond(updateStorageProperty(key, property, value));
+
+      case 'clear':
+        return respond(clearAllStorage());
+
+      default:
+        sendResponse({ success: false, error: 'Unknown action' });
+        return false;
+    }
+  } catch (error) {
+    sendResponse({ success: false, error: error && error.message });
+    return false;
+  }
 });

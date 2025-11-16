@@ -175,6 +175,7 @@
       const totalPages = message.totalPages;
 
       console.log(`Loading tutorial page ${pageNumber + 1}/${totalPages}`);
+      console.log(pageSteps);
 
       if (pageSteps.length > 0) {
         window.startTutorial(pageSteps);
