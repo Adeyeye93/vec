@@ -1,7 +1,8 @@
 // Background Script - Tutorial State Manager
 console.log("Background script running");
-addToStorage("Page", 0).catch(() => {});
-addToStorage("FromToast?", "NO").catch(() => {});
+addToStorage("Page", 0).catch((er) => {console.log(er)});
+addToStorage("FromToast?", "NO").catch((er) => {console.log(er)});
+addToStorage("FirstPage", "").catch((er) => {console.log(er)});
 
 var Di_step = null
 // background.js (service worker)
@@ -23,6 +24,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     tutorialState.steps = message.steps || [];
     tutorialState.currentPage = 0;
     tutorialState.completedPages.clear();
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length > 0) {
+          chrome.tabs.get(tabs[0].id, (tab) => {
+          const firstPageLink = tab.url;
+          addToStorage("FirstPage", firstPageLink).catch((er) => {console.log(er)});
+          });
+        }
+    });
+    
+    
 
     const currentPageSteps = (Di_step == null)
           ? (tutorialState.steps?.[tutorialState.currentPage] ?? [])
@@ -251,7 +263,7 @@ if (msg.type === "CONTINUE_PROCESS") {
               files: ['Guide.js']
             }, () => {
               console.log("Sending last step only:", lastOnly); 
-              
+
               chrome.tabs.sendMessage(id, {
               type: "LOAD_TUTORIAL",
               pageSteps: lastOnly,
@@ -287,7 +299,108 @@ if (msg.type === "CONTINUE_PROCESS") {
 
   return true;
 }
+
+if (msg.type === "RESTART_PROCESS") {
+  tutorialState.isActive = true;
+  tutorialState.currentPage = 0;
+  tutorialState.completedPages.clear();
+  updateStorage("Page", 0)
+  updateStorage("FromToast?", "YES")
+
+  firstPageLink = await getFromStorage("FirstPage");
+
+  chrome.tabs.update(sender.tab.id, { url: firstPageLink, autoDiscardable: true }, () => {
+    const onCompleted = (details) => {
+      if (details.tabId === sender.tab.id && details.url === firstPageLink) {
+        const currentPageSteps = tutorialState.steps[tutorialState.currentPage] || [];
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            files: ['Guide.js']
+          }, () => {
+            // Send tutorial steps
+            chrome.tabs.sendMessage(tabs[0].id, {
+              type: "LOAD_TUTORIAL",
+              pageSteps: currentPageSteps,
+              pageNumber: tutorialState.currentPage,
+              totalPages: tutorialState.steps.length
+            });
+
+            // Setup page listeners immediately
+            chrome.tabs.sendMessage(tabs[0].id, {
+              type: "SETUP_PAGE_LISTENERS",
+              steps: currentPageSteps
+            });
+          });
+        });
+        chrome.webNavigation.onCompleted.removeListener(onCompleted);
+        sendResponse({ status: "Tutorial restarted." });
+      }
+    };
+    chrome.webNavigation.onCompleted.addListener(onCompleted);
+  });
+
+  return true;
+}
+
+if (msg.type === "BREAK_PROCESS") {
+  tutorialState.isActive = false;
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  chrome.scripting.executeScript({
+    target: { tabId: tabs[0].id },
+    files: ['flash.js']
+  }, () => {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      type: "showFlashToast",
+        message: "You've the tutorial guide",
+        duration: 2000  
+    });
+  })
+})
+}
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -434,7 +547,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               .then(async (current) => {
                 const currentNum = typeof current === 'number' ? current : (Number.parseInt(current, 10) || 0);
                 const newValue = currentNum + (value === 1 ? 1 : -1);
-                await updateStorage(key, newValue);
+                updateStorage(key, newValue);
                 return newValue;
               })
           );

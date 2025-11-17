@@ -143,7 +143,7 @@ function removeToast() {
   const toast = document.getElementById('tutorial-toast-container');
   if (toast) {
     toast.style.animation = 'slideIn 0.3s ease-out reverse';
-    
+    toast.remove()
   }
 }
 
