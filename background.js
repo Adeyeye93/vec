@@ -1,6 +1,8 @@
 // Background Script - Tutorial State Manager
 console.log("Background script running");
 addToStorage("Page", 0).catch(() => {});
+addToStorage("FromToast?", "NO").catch(() => {});
+
 var Di_step = null
 // background.js (service worker)
 importScripts('bg-navigation.js'); // legacy-style import for worker scope
@@ -128,22 +130,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Listen for content script ready on new pages
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === "CONTENT_READY") {
     if (tutorialState.isActive) {
       const pageSteps = tutorialState.steps[tutorialState.currentPage] || [];
-      
-      chrome.tabs.sendMessage(sender.tab.id, {
+      let toastAction = await getFromStorage("FromToast?");
+      if (toastAction !== "YES") {
+        chrome.tabs.sendMessage(sender.tab.id, {
         type: "LOAD_TUTORIAL",
         pageSteps: pageSteps,
         pageNumber: tutorialState.currentPage,
         totalPages: tutorialState.steps.length
       });
+      }
 
       sendResponse({ status: "Tutorial resumed" });
     } else {
       sendResponse({ status: "No active tutorial" });
     }
+    updateStorage("FromToast?", "NO")
+
   }
 });
 
@@ -161,7 +167,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 let lastClickSelector = null;
 
 // Store last click selector when a click occurs
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
   if (msg.type === "click_record") {
     lastClickSelector = msg.selector || null;
     return;
@@ -173,67 +179,69 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     lastClickSelector = null;
     return true;
   }
+  if (msg.type === "url_change" && sender.tab && sender.tab.id) {
+  
+    lastClickSelector =  msg.selector
+      const newUrl = msg.new_url || "";
+      // previous page index (the page the user came from)
+      const prevIndex = Math.max(0, tutorialState.currentPage - 1);
+      const prevPageSteps = tutorialState.steps[prevIndex] || [];
+      // infer expected selector for the "last thing the user should do" on the previous page:
+      // we assume the last step in prevPageSteps describes that action
+      let expectedSelector;
+      if (Array.isArray(prevPageSteps) && prevPageSteps.length) {
+          const lastStep = prevPageSteps[prevPageSteps.length - 1];
+          expectedSelector = lastStep.selector || lastStep.expectedSelector || lastStep.target;
+      }
+      
+      let fromtoast = await getFromStorage("FromToast?");
+      console.log(fromtoast);
 
- if (msg.type === "url_change" && sender.tab && sender.tab.id) {
-  lastClickSelector =  msg.selector
-    const newUrl = msg.new_url || "";
-    // previous page index (the page the user came from)
-    const prevIndex = Math.max(0, tutorialState.currentPage - 1);
-    const prevPageSteps = tutorialState.steps[prevIndex] || [];
-    // infer expected selector for the "last thing the user should do" on the previous page:
-    // we assume the last step in prevPageSteps describes that action
-    let expectedSelector;
-    if (Array.isArray(prevPageSteps) && prevPageSteps.length) {
-        const lastStep = prevPageSteps[prevPageSteps.length - 1];
-        expectedSelector = lastStep.selector || lastStep.expectedSelector || lastStep.target;
-    }
-
-    const selectorMatches = lastClickSelector && expectedSelector
-        ? lastClickSelector === expectedSelector
-        : false;
-                  if (!selectorMatches && lastClickSelector != null && tutorialState.isActive ) {
-
+      const selectorMatches = lastClickSelector && expectedSelector
+          ? lastClickSelector === expectedSelector
+          : false;
+          
+      if (!selectorMatches && lastClickSelector != null && tutorialState.isActive && fromtoast == "NO") {
           chrome.scripting.executeScript({
-            target: { tabId: sender.tab.id },
-            files: ['toast.js']
+              target: { tabId: sender.tab.id },
+              files: ['toast.js']
           }, () => {
-            chrome.tabs.sendMessage(sender.tab.id, {
-              type: "showTutorialInterruptedToast",
-              lastClickSelector
-            });
+              chrome.tabs.sendMessage(sender.tab.id, {
+                  type: "showTutorialInterruptedToast",
+                  lastClickSelector
+              });
           });
-        } else {
+      } else {
           last_url = msg.lastUrl || "";
           if (sender && sender.tab && sender.tab.id !== undefined) {
-        chrome.tabs.sendMessage(sender.tab.id, {
-            type: "URL_CHANGE_CHECK_RESULT",
-            expectedSelector: expectedSelector || null,
-            lastClickSelector,
-            selectorMatches,
-        });
-    }
-        }
+              chrome.tabs.sendMessage(sender.tab.id, {
+                  type: "URL_CHANGE_CHECK_RESULT",
+                  expectedSelector: expectedSelector || null,
+                  lastClickSelector,
+                  selectorMatches,
+              });
+          }
+      }
+      // notify the content script (or popup) about the check result
+      
 
-    // notify the content script (or popup) about the check result
-    
-
-    // clear lastClickSelector so it won't persist across unrelated actions
-    lastClickSelector = null;
-    return; 
+      // clear lastClickSelector so it won't persist across unrelated actions
+      lastClickSelector = null;
+      return; 
 }
 
 if (msg.type === "CONTINUE_PROCESS") {
   console.log("Continuing tutorial process to URL:", last_url);
+  updateStorage("FromToast?", "YES")
   const targetUrl = last_url
   const tabId = sender && sender.tab && sender.tab.id;
   console.log(getFromStorage("Page"))
 
   const handleNavigationAndSendDots = (id) => {
-    chrome.tabs.update(id, { url: targetUrl }, () => {
+    chrome.tabs.update(id, { url: targetUrl, autoDiscardable: true }, () => {
       const onCompleted = async (details) => {
         if (details.tabId === id && details.url === targetUrl) {
           const pageSteps = tutorialState.steps[tutorialState.currentPage] || []; 
-
            const currentPageSteps = tutorialState.steps[tutorialState.currentPage] || []; 
            const lastOnly = currentPageSteps.slice(-1);
            Di_step = lastOnly
@@ -242,16 +250,15 @@ if (msg.type === "CONTINUE_PROCESS") {
               target: { tabId: tabs[0].id },
               files: ['Guide.js']
             }, () => {
-              console.log("Sending last step only:", lastOnly);
-              // Send tutorial steps
-              // chrome.tabs.sendMessage(tabs[0].id, {
-              //   type: "LOAD_TUTORIAL",
-              //   pageSteps: lastOnly,
-              //   pageNumber: tutorialState.currentPage,
-              //   totalPages: tutorialState.steps.length
-              // });
+              console.log("Sending last step only:", lastOnly); 
+              
+              chrome.tabs.sendMessage(id, {
+              type: "LOAD_TUTORIAL",
+              pageSteps: lastOnly,
+              pageNumber: tutorialState.currentPage,
+              totalPages: tutorialState.steps.length
+            });
 
-              // Setup page listeners immediately
               chrome.tabs.sendMessage(tabs[0].id, {
                 type: "SETUP_PAGE_LISTENERS",
                 steps: currentPageSteps
@@ -360,8 +367,17 @@ function updateStorage(key, value) {
           console.log(newValue)
           return newValue;
         })
-  }
-}
+  } else {
+    getFromStorage(key).then(async (current) => {
+      if (current === null) {
+        // Key does not exist, add it
+        await addToStorage(key, value);
+      } else {
+        // Key exists, update it
+        await addToStorage(key, value);
+      }
+  })
+}}
 
 // Update specific property in stored object
 async function updateStorageProperty(key, property, value) {

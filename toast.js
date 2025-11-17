@@ -2,9 +2,9 @@
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "showTutorialInterruptedToast") {
-    console.log(message)
+    
     showTutorialToast();
-    sendResponse({ success: true });
+    sendResponse({ success: true });    
   }
 });
 
@@ -143,7 +143,7 @@ function removeToast() {
   const toast = document.getElementById('tutorial-toast-container');
   if (toast) {
     toast.style.animation = 'slideIn 0.3s ease-out reverse';
-    setTimeout(() => toast.remove(), 300);
+    
   }
 }
 

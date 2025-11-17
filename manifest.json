@@ -21,7 +21,6 @@
       "matches": ["<all_urls>"],
       "js": ["content.js", "page_worker.js", "localStorage.js"],
       "css": ["tip.css", "Guide.css"],
-      "run_at": "document_idle",
       "all_frames": false
     }
   ],
