@@ -3,6 +3,17 @@ console.log("Content script running");
 (function() {
   console.log("Page change listener loaded");
 
+ 
+
+window.addEventListener('beforeunload', () => {
+    chrome.runtime.sendMessage({
+        type: "NEW_LOAD",
+        url: window.location.href
+    });
+});
+
+
+
   let pageChangeElements = [];
   let pageWontChangeElements = [];
 
@@ -54,9 +65,9 @@ console.log("Content script running");
     });
   }
 
-  // Optional: Listen for navigation changes if you need to detect route changes
-  // This helps if your site uses SPAs (Single Page Apps) instead of full page reloads
+  
   window.addEventListener('beforeunload', () => {
-    console.log("Page unloading");
+  
+    chrome.runtime.sendMessage({ type: "LOAD_ALART" });
   });
 })();

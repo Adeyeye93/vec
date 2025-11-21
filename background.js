@@ -1,20 +1,46 @@
 // Background Script - Tutorial State Manager
 console.log("Background script running");
-addToStorage("Page", 0).catch((er) => {console.log(er)});
-addToStorage("FromToast?", "NO").catch((er) => {console.log(er)});
-addToStorage("FirstPage", "").catch((er) => {console.log(er)});
+addToStorage("Page", 0).catch((er) => {
+  console.log(er);
+});
+addToStorage("FromToast?", "NO").catch((er) => {
+  console.log(er);
+});
+addToStorage("FirstPage", "").catch((er) => {
+  console.log(er);
+});
+addToStorage("PageMemory", "").catch((er) => {
+  console.log(er);
+});
+addToStorage("activeTabId", -1).catch((er) => {
+  console.log(er);
+});
 
-var Di_step = null
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg.type === "NEW_LOAD") {
+    addToStorage("PageMemory", msg.url).catch((er) => {
+      console.log(er);
+    });
+  }
+});
+
+var Di_step = null;
 // background.js (service worker)
-importScripts('bg-navigation.js'); // legacy-style import for worker scope
+importScripts("bg-navigation.js"); // legacy-style import for worker scope
 // or you can dynamically `fetch`+`eval` or combine code during build
 var last_url = "";
+var user_digressed = false;
+
+let process_state = {
+  first_stage: [false, 1],
+  second_stage: false,
+};
 
 let tutorialState = {
   isActive: false,
   currentPage: 0,
   steps: [],
-  completedPages: new Set()
+  completedPages: new Set(),
 };
 
 // Receive START_PROCESS from popup.js with all tutorial steps
@@ -24,44 +50,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     tutorialState.steps = message.steps || [];
     tutorialState.currentPage = 0;
     tutorialState.completedPages.clear();
+    process_state.first_stage[0] = true;
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs.length > 0) {
-          chrome.tabs.get(tabs[0].id, (tab) => {
+      if (tabs.length > 0) {
+        chrome.tabs.get(tabs[0].id, (tab) => {
           const firstPageLink = tab.url;
-          addToStorage("FirstPage", firstPageLink).catch((er) => {console.log(er)});
+          addToStorage("FirstPage", firstPageLink).catch((er) => {
+            console.log(er);
+          });
+          addToStorage("activeTabId", tabs[0].id).catch((er) => {
+            console.log(er);
+          });
+        });
+      }
+    });
+
+    const currentPageSteps =
+      Di_step == null
+        ? tutorialState.steps?.[tutorialState.currentPage] ?? []
+        : Di_step;
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      chrome.scripting.executeScript(
+        {
+          target: { tabId: tabs[0].id },
+          files: ["Guide.js"],
+        },
+        () => {
+          // Send tutorial steps
+          chrome.tabs.sendMessage(tabs[0].id, {
+            type: "LOAD_TUTORIAL",
+            pageSteps: currentPageSteps,
+            pageNumber: tutorialState.currentPage,
+            totalPages: tutorialState.steps.length,
+          });
+
+          // Setup page listeners immediately
+          chrome.tabs.sendMessage(tabs[0].id, {
+            type: "SETUP_PAGE_LISTENERS",
+            steps: currentPageSteps,
           });
         }
+      );
     });
-    
-    
-
-    const currentPageSteps = (Di_step == null)
-          ? (tutorialState.steps?.[tutorialState.currentPage] ?? [])
-          : Di_step;
-
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      chrome.scripting.executeScript({
-        target: { tabId: tabs[0].id },
-        files: ['Guide.js']
-      }, () => {
-        
-        // Send tutorial steps
-        chrome.tabs.sendMessage(tabs[0].id, {
-          type: "LOAD_TUTORIAL",
-          pageSteps: currentPageSteps,
-          pageNumber: tutorialState.currentPage,
-          totalPages: tutorialState.steps.length
-        });
-
-        // Setup page listeners immediately
-        chrome.tabs.sendMessage(tabs[0].id, {
-          type: "SETUP_PAGE_LISTENERS",
-          steps: currentPageSteps
-        });
-      });
-    });
-
   }
 });
 
@@ -70,41 +102,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "PAGE_WILL_CHANGE") {
     tutorialState.completedPages.add(tutorialState.currentPage);
     tutorialState.currentPage++;
-    updateStorage("Page", 1)
+    updateStorage("Page", 1);
 
     if (tutorialState.currentPage < tutorialState.steps.length) {
       console.log(`Moving to page ${tutorialState.currentPage + 1}`);
-      
+
       // Listen for the new page to load
       const listener = (details) => {
-        if (tutorialState.isActive && tutorialState.currentPage < tutorialState.steps.length) {
+        if (
+          tutorialState.isActive &&
+          tutorialState.currentPage < tutorialState.steps.length
+        ) {
           console.log("New page loaded, sending tutorial data...");
-          
-          const nextPageSteps = tutorialState.steps[tutorialState.currentPage] || [];
-          
+
+          const nextPageSteps =
+            tutorialState.steps[tutorialState.currentPage] || [];
+
           // Send tutorial steps for new page
           chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            chrome.scripting.executeScript({
+            chrome.scripting.executeScript(
+              {
                 target: { tabId: tabs[0].id },
-                files: ['Guide.js']
-            }, () => {
-                const currentPageSteps = tutorialState.steps[tutorialState.currentPage] || [];
-                
+                files: ["Guide.js"],
+              },
+              () => {
+                const currentPageSteps =
+                  tutorialState.steps[tutorialState.currentPage] || [];
+
                 // Send tutorial steps
                 chrome.tabs.sendMessage(tabs[0].id, {
-                type: "LOAD_TUTORIAL",
-                pageSteps: currentPageSteps,
-                pageNumber: tutorialState.currentPage,
-                totalPages: tutorialState.steps.length
+                  type: "LOAD_TUTORIAL",
+                  pageSteps: currentPageSteps,
+                  pageNumber: tutorialState.currentPage,
+                  totalPages: tutorialState.steps.length,
                 });
 
                 // Setup page listeners immediately
                 chrome.tabs.sendMessage(tabs[0].id, {
-                type: "SETUP_PAGE_LISTENERS",
-                steps: currentPageSteps
+                  type: "SETUP_PAGE_LISTENERS",
+                  steps: currentPageSteps,
                 });
-            });
-            });
+              }
+            );
+          });
 
           // Remove listener after first use
           chrome.webNavigation.onCompleted.removeListener(listener);
@@ -125,23 +165,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "FINISH_PROCESS") {
     const pageSteps = tutorialState.steps[tutorialState.currentPage] || [];
+    process_state.first_stage[0] = false;
+    process_state.second_stage = true;
 
-    chrome.scripting.executeScript({
-      target: { tabId: sender.tab.id },
-      files: ['tip.js']
-    }, () => {
-      // After tip.js injects, send the steps for dots
-      chrome.tabs.sendMessage(sender.tab.id, {
-        type: "LOAD_DOTS",
-        steps: pageSteps
-      });
-    });
+    chrome.scripting.executeScript(
+      {
+        target: { tabId: sender.tab.id },
+        files: ["tip.js"],
+      },
+      () => {
+        // After tip.js injects, send the steps for dots
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "LOAD_DOTS",
+          steps: pageSteps,
+        });
+      }
+    );
 
     sendResponse({ status: "Dots injected" });
   }
 });
 
 // Listen for content script ready on new pages
+
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === "CONTENT_READY") {
     if (tutorialState.isActive) {
@@ -149,19 +195,18 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
       let toastAction = await getFromStorage("FromToast?");
       if (toastAction !== "YES") {
         chrome.tabs.sendMessage(sender.tab.id, {
-        type: "LOAD_TUTORIAL",
-        pageSteps: pageSteps,
-        pageNumber: tutorialState.currentPage,
-        totalPages: tutorialState.steps.length
-      });
+          type: "LOAD_TUTORIAL",
+          pageSteps: pageSteps,
+          pageNumber: tutorialState.currentPage,
+          totalPages: tutorialState.steps.length,
+        });
       }
 
       sendResponse({ status: "Tutorial resumed" });
     } else {
       sendResponse({ status: "No active tutorial" });
     }
-    updateStorage("FromToast?", "NO")
-
+    updateStorage("FromToast?", "NO");
   }
 });
 
@@ -171,7 +216,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({
       isActive: tutorialState.isActive,
       currentPage: tutorialState.currentPage,
-      totalPages: tutorialState.steps.length
+      totalPages: tutorialState.steps.length,
     });
   }
 });
@@ -192,231 +237,293 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     return true;
   }
   if (msg.type === "url_change" && sender.tab && sender.tab.id) {
-  
-    lastClickSelector =  msg.selector
-      const newUrl = msg.new_url || "";
-      // previous page index (the page the user came from)
-      const prevIndex = Math.max(0, tutorialState.currentPage - 1);
-      const prevPageSteps = tutorialState.steps[prevIndex] || [];
-      // infer expected selector for the "last thing the user should do" on the previous page:
-      // we assume the last step in prevPageSteps describes that action
-      let expectedSelector;
-      if (Array.isArray(prevPageSteps) && prevPageSteps.length) {
-          const lastStep = prevPageSteps[prevPageSteps.length - 1];
-          expectedSelector = lastStep.selector || lastStep.expectedSelector || lastStep.target;
-      }
-      
-      let fromtoast = await getFromStorage("FromToast?");
-      console.log(fromtoast);
+    lastClickSelector = msg.selector;
+    const newUrl = msg.new_url || "";
+    // previous page index (the page the user came from)
+    const prevIndex = Math.max(0, tutorialState.currentPage - 1);
+    const prevPageSteps = tutorialState.steps[prevIndex] || [];
+    // infer expected selector for the "last thing the user should do" on the previous page:
+    // we assume the last step in prevPageSteps describes that action
+    let expectedSelector;
+    if (Array.isArray(prevPageSteps) && prevPageSteps.length) {
+      const lastStep = prevPageSteps[prevPageSteps.length - 1];
+      expectedSelector =
+        lastStep.selector || lastStep.expectedSelector || lastStep.target;
+    }
 
-      const selectorMatches = lastClickSelector && expectedSelector
-          ? lastClickSelector === expectedSelector
-          : false;
-          
-      if (!selectorMatches && lastClickSelector != null && tutorialState.isActive && fromtoast == "NO") {
-          chrome.scripting.executeScript({
-              target: { tabId: sender.tab.id },
-              files: ['toast.js']
-          }, () => {
-              chrome.tabs.sendMessage(sender.tab.id, {
-                  type: "showTutorialInterruptedToast",
-                  lastClickSelector
-              });
+    let fromtoast = await getFromStorage("FromToast?");
+    let pm = await getFromStorage("PageMemory");
+
+    const selectorMatches =
+      lastClickSelector && expectedSelector
+        ? lastClickSelector === expectedSelector
+        : false;
+
+    if (
+      !selectorMatches &&
+      lastClickSelector != null &&
+      tutorialState.isActive &&
+      fromtoast == "NO" &&
+      pm != newUrl
+    ) {
+      user_digressed = true;
+      chrome.scripting.executeScript(
+        {
+          target: { tabId: sender.tab.id },
+          files: ["toast.js"],
+        },
+        () => {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: "showTutorialInterruptedToast",
+            lastClickSelector,
           });
-      } else {
-          last_url = msg.lastUrl || "";
-          if (sender && sender.tab && sender.tab.id !== undefined) {
-              chrome.tabs.sendMessage(sender.tab.id, {
-                  type: "URL_CHANGE_CHECK_RESULT",
-                  expectedSelector: expectedSelector || null,
-                  lastClickSelector,
-                  selectorMatches,
-              });
-          }
-      }
-      // notify the content script (or popup) about the check result
-      
-
-      // clear lastClickSelector so it won't persist across unrelated actions
-      lastClickSelector = null;
-      return; 
-}
-
-if (msg.type === "CONTINUE_PROCESS") {
-  console.log("Continuing tutorial process to URL:", last_url);
-  updateStorage("FromToast?", "YES")
-  const targetUrl = last_url
-  const tabId = sender && sender.tab && sender.tab.id;
-  console.log(getFromStorage("Page"))
-
-  const handleNavigationAndSendDots = (id) => {
-    chrome.tabs.update(id, { url: targetUrl, autoDiscardable: true }, () => {
-      const onCompleted = async (details) => {
-        if (details.tabId === id && details.url === targetUrl) {
-          const pageSteps = tutorialState.steps[tutorialState.currentPage] || []; 
-           const currentPageSteps = tutorialState.steps[tutorialState.currentPage] || []; 
-           const lastOnly = currentPageSteps.slice(-1);
-           Di_step = lastOnly
-          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            chrome.scripting.executeScript({
-              target: { tabId: tabs[0].id },
-              files: ['Guide.js']
-            }, () => {
-              console.log("Sending last step only:", lastOnly); 
-
-              chrome.tabs.sendMessage(id, {
-              type: "LOAD_TUTORIAL",
-              pageSteps: lastOnly,
-              pageNumber: tutorialState.currentPage,
-              totalPages: tutorialState.steps.length
-            });
-
-              chrome.tabs.sendMessage(tabs[0].id, {
-                type: "SETUP_PAGE_LISTENERS",
-                steps: currentPageSteps
-              });
-            });
-          });
-          chrome.webNavigation.onCompleted.removeListener(onCompleted);
-          sendResponse({ status: "navigated", url: targetUrl });
         }
-      };
-      chrome.webNavigation.onCompleted.addListener(onCompleted);
-    });
-  };
-
-  if (tabId !== undefined) {
-    handleNavigationAndSendDots(tabId);
-  } else {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs && tabs[0]) {
-        handleNavigationAndSendDots(tabs[0].id);
-      } else {
-        sendResponse({ status: "error", message: "No active tab found." });
+      );
+    } else {
+      last_url = msg.lastUrl || "";
+      if (sender && sender.tab && sender.tab.id !== undefined) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "URL_CHANGE_CHECK_RESULT",
+          expectedSelector: expectedSelector || null,
+          lastClickSelector,
+          selectorMatches,
+        });
       }
+    }
+
+    // notify the content script (or popup) about the check result
+
+    // clear lastClickSelector so it won't persist across unrelated actions
+    lastClickSelector = null;
+    return;
+  }
+  if (msg.type === "CONTINUE_PROCESS") {
+    console.log("Continuing tutorial process to URL:", last_url);
+    updateStorage("FromToast?", "YES");
+    const targetUrl = last_url;
+    const tabId = sender && sender.tab && sender.tab.id;
+
+    const handleNavigationAndSendDots = (id) => {
+      chrome.tabs.update(id, { url: targetUrl, autoDiscardable: true }, () => {
+        const onCompleted = async (details) => {
+          if (details.tabId === id && details.url === targetUrl) {
+            const pageSteps =
+              tutorialState.steps[tutorialState.currentPage] || [];
+            const currentPageSteps =
+              tutorialState.steps[tutorialState.currentPage] || [];
+            const lastOnly = currentPageSteps.slice(-1);
+            Di_step = lastOnly;
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              chrome.scripting.executeScript(
+                {
+                  target: { tabId: tabs[0].id },
+                  files: ["Guide.js"],
+                },
+                () => {
+                  console.log("Sending last step only:", lastOnly);
+
+                  chrome.tabs.sendMessage(id, {
+                    type: "LOAD_TUTORIAL",
+                    pageSteps: lastOnly,
+                    pageNumber: tutorialState.currentPage,
+                    totalPages: tutorialState.steps.length,
+                  });
+
+                  chrome.tabs.sendMessage(tabs[0].id, {
+                    type: "SETUP_PAGE_LISTENERS",
+                    steps: currentPageSteps,
+                  });
+                }
+              );
+            });
+            chrome.webNavigation.onCompleted.removeListener(onCompleted);
+            sendResponse({ status: "navigated", url: targetUrl });
+          }
+        };
+        chrome.webNavigation.onCompleted.addListener(onCompleted);
+      });
+    };
+
+    if (tabId !== undefined) {
+      handleNavigationAndSendDots(tabId);
+    } else {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs && tabs[0]) {
+          handleNavigationAndSendDots(tabs[0].id);
+        } else {
+          sendResponse({ status: "error", message: "No active tab found." });
+        }
+      });
+    }
+
+    return true;
+  }
+
+  if (msg.type === "RESTART_PROCESS") {
+    tutorialState.isActive = true;
+    tutorialState.currentPage = 0;
+    tutorialState.completedPages.clear();
+    updateStorage("Page", 0);
+    updateStorage("FromToast?", "YES");
+
+    firstPageLink = await getFromStorage("FirstPage");
+
+    chrome.tabs.update(
+      sender.tab.id,
+      { url: firstPageLink, autoDiscardable: true },
+      () => {
+        const onCompleted = (details) => {
+          if (
+            details.tabId === sender.tab.id &&
+            details.url === firstPageLink
+          ) {
+            const currentPageSteps =
+              tutorialState.steps[tutorialState.currentPage] || [];
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              chrome.scripting.executeScript(
+                {
+                  target: { tabId: tabs[0].id },
+                  files: ["Guide.js"],
+                },
+                () => {
+                  // Send tutorial steps
+                  chrome.tabs.sendMessage(tabs[0].id, {
+                    type: "LOAD_TUTORIAL",
+                    pageSteps: currentPageSteps,
+                    pageNumber: tutorialState.currentPage,
+                    totalPages: tutorialState.steps.length,
+                  });
+
+                  // Setup page listeners immediately
+                  chrome.tabs.sendMessage(tabs[0].id, {
+                    type: "SETUP_PAGE_LISTENERS",
+                    steps: currentPageSteps,
+                  });
+                }
+              );
+            });
+            chrome.webNavigation.onCompleted.removeListener(onCompleted);
+            sendResponse({ status: "Tutorial restarted." });
+          }
+        };
+        chrome.webNavigation.onCompleted.addListener(onCompleted);
+      }
+    );
+
+    return true;
+  }
+
+  if (msg.type === "BREAK_PROCESS") {
+    tutorialState.isActive = false;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0].id;
+
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: "check_flash_injected" },
+        (response) => {
+          if (chrome.runtime.lastError || !response) {
+            chrome.scripting.executeScript(
+              {
+                target: { tabId },
+                files: ["flash.js"],
+              },
+              () => {
+                chrome.tabs.sendMessage(tabId, {
+                  type: "showFlashToast",
+                  message: "The tutorial has been skipped.",
+                  duration: 2000,
+                });
+              }
+            );
+          } else {
+            chrome.tabs.sendMessage(tabId, {
+              type: "showFlashToast",
+              message: "The tutorial has been skipped.",
+              duration: 2000,
+            });
+          }
+        }
+      );
     });
   }
 
-  return true;
-}
+  let at = await getFromStorage("activeTabId");
+  let pm = await getFromStorage("PageMemory");
 
-if (msg.type === "RESTART_PROCESS") {
-  tutorialState.isActive = true;
-  tutorialState.currentPage = 0;
-  tutorialState.completedPages.clear();
-  updateStorage("Page", 0)
-  updateStorage("FromToast?", "YES")
+  if (
+    msg.type === "PAGE_LOADED" &&
+    tutorialState.isActive &&
+    at == sender.tab.id &&
+    pm === sender.tab.url
+  ) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0].id;
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: "check_flash_injected" },
+        (response) => {
+          if (chrome.runtime.lastError || !response) {
+            chrome.scripting.executeScript(
+              {
+                target: { tabId },
+                files: ["flash.js", "Guide.js", "tip.js"],
+              },
+              () => {
+                const currentPageSteps =
+                  tutorialState.steps[tutorialState.currentPage] || [];
+                let user_last_step = process_state.first_stage[1];
+                const stepNumber = Number.parseInt(user_last_step, 10) || 1;
+                const startIndex = Math.max(0, stepNumber - 1);
+                const slicedSteps = currentPageSteps.slice(startIndex);
 
-  firstPageLink = await getFromStorage("FirstPage");
-
-  chrome.tabs.update(sender.tab.id, { url: firstPageLink, autoDiscardable: true }, () => {
-    const onCompleted = (details) => {
-      if (details.tabId === sender.tab.id && details.url === firstPageLink) {
-        const currentPageSteps = tutorialState.steps[tutorialState.currentPage] || [];
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          chrome.scripting.executeScript({
-            target: { tabId: tabs[0].id },
-            files: ['Guide.js']
-          }, () => {
-            // Send tutorial steps
-            chrome.tabs.sendMessage(tabs[0].id, {
-              type: "LOAD_TUTORIAL",
-              pageSteps: currentPageSteps,
-              pageNumber: tutorialState.currentPage,
-              totalPages: tutorialState.steps.length
+                if (
+                  process_state.first_stage[0] === true &&
+                  process_state.second_stage === false
+                ) {
+                  Di_step = slicedSteps;
+                  chrome.tabs.sendMessage(tabId, {
+                    type: "LOAD_TUTORIAL",
+                    pageSteps: slicedSteps,
+                    pageNumber: tutorialState.currentPage,
+                    totalPages: tutorialState.steps.length,
+                  });
+                } else {
+                  console.log("Removing guide as tutorial is in dots stage.");
+                  chrome.tabs.sendMessage(tabId, {
+                    type: "REMOVE_GUIDE",
+                  });
+                }
+                chrome.tabs.sendMessage(tabId, {
+                  type: "showFlashToast",
+                  message: "Looks like the page reloaded. Tutorial resumed.",
+                  duration: 3000,
+                });
+              }
+            );
+          } else {
+            chrome.tabs.sendMessage(tabId, {
+              type: "showFlashToast",
+              message: "Looks like the page reloaded. Tutorial resumed.",
+              duration: 3000,
             });
-
-            // Setup page listeners immediately
-            chrome.tabs.sendMessage(tabs[0].id, {
-              type: "SETUP_PAGE_LISTENERS",
-              steps: currentPageSteps
-            });
-          });
-        });
-        chrome.webNavigation.onCompleted.removeListener(onCompleted);
-        sendResponse({ status: "Tutorial restarted." });
-      }
-    };
-    chrome.webNavigation.onCompleted.addListener(onCompleted);
-  });
-
-  return true;
-}
-
-if (msg.type === "BREAK_PROCESS") {
-  tutorialState.isActive = false;
-chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-  chrome.scripting.executeScript({
-    target: { tabId: tabs[0].id },
-    files: ['flash.js']
-  }, () => {
-    chrome.tabs.sendMessage(tabs[0].id, {
-      type: "showFlashToast",
-        message: "You've the tutorial guide",
-        duration: 2000  
+          }
+        }
+      );
     });
-  })
-})
-}
+  }
+
+  if (msg.type === "NEXT_STEP_CLICKED") {
+    process_state.first_stage[1] += 1;
+  }
+
+  if (msg.type === "PREV_STEP_CLICKED") {
+    process_state.first_stage[1] -= 1;
+  }
+
+  if (msg.type === "LOAD_ALART") {
+  }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // Background-safe storage using chrome.storage.local
 // Replace the content-script localStorage usage with this background script.
@@ -428,7 +535,8 @@ function addToStorage(key, value) {
     try {
       const payload = { [key]: value };
       chrome.storage.local.set(payload, () => {
-        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        if (chrome.runtime.lastError)
+          return reject(new Error(chrome.runtime.lastError.message));
         console.log(`Added to storage: ${key}`, value);
         resolve(true);
       });
@@ -443,7 +551,8 @@ function removeFromStorage(key) {
   return new Promise((resolve, reject) => {
     try {
       chrome.storage.local.remove(key, () => {
-        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        if (chrome.runtime.lastError)
+          return reject(new Error(chrome.runtime.lastError.message));
         console.log(`Removed from storage: ${key}`);
         resolve(true);
       });
@@ -458,7 +567,8 @@ function getFromStorage(key) {
   return new Promise((resolve, reject) => {
     try {
       chrome.storage.local.get([key], (result) => {
-        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        if (chrome.runtime.lastError)
+          return reject(new Error(chrome.runtime.lastError.message));
         resolve(result.hasOwnProperty(key) ? result[key] : null);
       });
     } catch (err) {
@@ -470,16 +580,17 @@ function getFromStorage(key) {
 // Update (set) item in chrome.storage.local
 function updateStorage(key, value) {
   // For chrome.storage.local, set overrides existing entry.
-  if (key === 'Page' && (value === 1 || value === 0)) {
-   
-      getFromStorage(key)
-        .then(async (current) => {
-          const currentNum = typeof current === 'number' ? current : (Number.parseInt(current, 10) || 0);
-          const newValue = currentNum + (value === 1 ? 1 : -1);
-          await addToStorage(key, newValue);
-          console.log(newValue)
-          return newValue;
-        })
+  if (key === "Page" && (value === 1 || value === 0)) {
+    getFromStorage(key).then(async (current) => {
+      const currentNum =
+        typeof current === "number"
+          ? current
+          : Number.parseInt(current, 10) || 0;
+      const newValue = currentNum + (value === 1 ? 1 : -1);
+      await addToStorage(key, newValue);
+      console.log(newValue);
+      return newValue;
+    });
   } else {
     getFromStorage(key).then(async (current) => {
       if (current === null) {
@@ -489,15 +600,18 @@ function updateStorage(key, value) {
         // Key exists, update it
         await addToStorage(key, value);
       }
-  })
-}}
+    });
+  }
+}
 
 // Update specific property in stored object
 async function updateStorageProperty(key, property, value) {
   const currentData = await getFromStorage(key);
   const data = currentData == null ? {} : currentData;
-  if (typeof data !== 'object' || Array.isArray(data)) {
-    return Promise.reject(new Error('Cannot update property on non-object value'));
+  if (typeof data !== "object" || Array.isArray(data)) {
+    return Promise.reject(
+      new Error("Cannot update property on non-object value")
+    );
   }
   data[property] = value;
   return await addToStorage(key, data);
@@ -508,8 +622,9 @@ function clearAllStorage() {
   return new Promise((resolve, reject) => {
     try {
       chrome.storage.local.clear(() => {
-        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-        console.log('Cleared all storage');
+        if (chrome.runtime.lastError)
+          return reject(new Error(chrome.runtime.lastError.message));
+        console.log("Cleared all storage");
         resolve(true);
       });
     } catch (err) {
@@ -524,45 +639,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { action, key, value, property } = message;
 
     const respond = (p) => {
-      p.then((res) => sendResponse({ success: true, data: res }))
-       .catch((err) => sendResponse({ success: false, error: err && err.message }));
+      p.then((res) => sendResponse({ success: true, data: res })).catch((err) =>
+        sendResponse({ success: false, error: err && err.message })
+      );
       return true; // keep channel open for async response
     };
 
     switch (action) {
-      case 'add':
+      case "add":
         return respond(addToStorage(key, value));
 
-      case 'remove':
+      case "remove":
         return respond(removeFromStorage(key));
 
-      case 'get':
+      case "get":
         return respond(getFromStorage(key));
 
-      case 'update': {
+      case "update": {
         // Special handling for Page increments/decrements
-        if (key === 'Page' && (value === 1 || value === 0)) {
+        if (key === "Page" && (value === 1 || value === 0)) {
           return respond(
-            getFromStorage(key)
-              .then(async (current) => {
-                const currentNum = typeof current === 'number' ? current : (Number.parseInt(current, 10) || 0);
-                const newValue = currentNum + (value === 1 ? 1 : -1);
-                updateStorage(key, newValue);
-                return newValue;
-              })
+            getFromStorage(key).then(async (current) => {
+              const currentNum =
+                typeof current === "number"
+                  ? current
+                  : Number.parseInt(current, 10) || 0;
+              const newValue = currentNum + (value === 1 ? 1 : -1);
+              updateStorage(key, newValue);
+              return newValue;
+            })
           );
         }
         return respond(updateStorage(key, value));
       }
 
-      case 'updateProperty':
+      case "updateProperty":
         return respond(updateStorageProperty(key, property, value));
 
-      case 'clear':
+      case "clear":
         return respond(clearAllStorage());
 
       default:
-        sendResponse({ success: false, error: 'Unknown action' });
+        sendResponse({ success: false, error: "Unknown action" });
         return false;
     }
   } catch (error) {

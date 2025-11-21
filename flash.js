@@ -78,6 +78,13 @@ function showFlashMessage(message = "Tutorial Interrupted!", duration = 2000) {
   }, duration);
 }
 
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "check_flash_injected") {
+    sendResponse({ injected: true });
+  }
+});
+
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "showFlashToast") {

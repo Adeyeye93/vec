@@ -86,6 +86,7 @@
   window.addEventListener("load", () => {
     lastUrl = location.href;
     notifyUrlChange(true);
+    chrome.runtime.sendMessage({ type: "PAGE_LOADED" });
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -93,5 +94,6 @@
     console.log(message)
   }
 });
-  
+
+
 })();
