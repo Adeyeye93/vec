@@ -141,8 +141,15 @@
 
     nextBtn.addEventListener("click", function () {
       if (currentStep === steps.length - 1) {
+        console.log("NEXT clicked");
+        chrome.runtime
+          .sendMessage({
+            type: "NEXT_STEP_CLICKED",
+          })
+          .catch(() => {});
         window.endTutorial();
       } else {
+        console.log("NEXT clicked")
         chrome.runtime
           .sendMessage({
             type: "NEXT_STEP_CLICKED",
@@ -154,6 +161,8 @@
 
     prevBtn.addEventListener("click", function () {
       showStep(currentStep - 1);
+      console.log("PREV clicked");
+
       chrome.runtime
         .sendMessage({
           type: "PREV_STEP_CLICKED",
@@ -231,4 +240,6 @@
       type: "CONTENT_READY",
     })
     .catch(() => {});
+
+    console.log("Tutorial Spotlight content script initialized");
 })();

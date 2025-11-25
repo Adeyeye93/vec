@@ -32,8 +32,8 @@ var last_url = "";
 var user_digressed = false;
 
 let process_state = {
-  first_stage: [false, 1],
-  second_stage: false,
+  stage: 0,
+  step: 2,
 };
 
 let tutorialState = {
@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     tutorialState.steps = message.steps || [];
     tutorialState.currentPage = 0;
     tutorialState.completedPages.clear();
-    process_state.first_stage[0] = true;
+    process_state.stage = 1;
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0) {
@@ -100,9 +100,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Receive PAGE_WILL_CHANGE from content script when user interacts with page-change element
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "PAGE_WILL_CHANGE") {
+    console.log("PAGE_WILL_CHANGE received");
     tutorialState.completedPages.add(tutorialState.currentPage);
     tutorialState.currentPage++;
     updateStorage("Page", 1);
+    process_state.stage = 1;
+    process_state.step = 2;
 
     if (tutorialState.currentPage < tutorialState.steps.length) {
       console.log(`Moving to page ${tutorialState.currentPage + 1}`);
@@ -165,8 +168,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "FINISH_PROCESS") {
     const pageSteps = tutorialState.steps[tutorialState.currentPage] || [];
-    process_state.first_stage[0] = false;
-    process_state.second_stage = true;
+    process_state.stage = 2;
 
     chrome.scripting.executeScript(
       {
@@ -472,15 +474,12 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
               () => {
                 const currentPageSteps =
                   tutorialState.steps[tutorialState.currentPage] || [];
-                let user_last_step = process_state.first_stage[1];
+                let user_last_step = process_state.step / 2;
                 const stepNumber = Number.parseInt(user_last_step, 10) || 1;
                 const startIndex = Math.max(0, stepNumber - 1);
                 const slicedSteps = currentPageSteps.slice(startIndex);
 
-                if (
-                  process_state.first_stage[0] === true &&
-                  process_state.second_stage === false
-                ) {
+                if (process_state.stage === 1) {
                   Di_step = slicedSteps;
                   chrome.tabs.sendMessage(tabId, {
                     type: "LOAD_TUTORIAL",
@@ -488,16 +487,28 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
                     pageNumber: tutorialState.currentPage,
                     totalPages: tutorialState.steps.length,
                   });
-                } else {
+                  chrome.tabs.sendMessage(tabs[0].id, {
+                    type: "SETUP_PAGE_LISTENERS",
+                    steps: currentPageSteps,
+                  });
+                } else if (process_state.stage === 2) {
                   console.log("Removing guide as tutorial is in dots stage.");
                   chrome.tabs.sendMessage(tabId, {
                     type: "REMOVE_GUIDE",
+                  });
+                  chrome.tabs.sendMessage(tabs[0].id, {
+                    type: "SETUP_PAGE_LISTENERS",
+                    steps: currentPageSteps,
                   });
                 }
                 chrome.tabs.sendMessage(tabId, {
                   type: "showFlashToast",
                   message: "Looks like the page reloaded. Tutorial resumed.",
                   duration: 3000,
+                });
+                chrome.tabs.sendMessage(tabs[0].id, {
+                  type: "SETUP_PAGE_LISTENERS",
+                  steps: currentPageSteps,
                 });
               }
             );
@@ -507,6 +518,10 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
               message: "Looks like the page reloaded. Tutorial resumed.",
               duration: 3000,
             });
+            chrome.tabs.sendMessage(tabs[0].id, {
+              type: "SETUP_PAGE_LISTENERS",
+              steps: currentPageSteps,
+            });
           }
         }
       );
@@ -514,11 +529,15 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
   }
 
   if (msg.type === "NEXT_STEP_CLICKED") {
-    process_state.first_stage[1] += 1;
+    process_state.step += 1;
+    console.log(`NEXT_STEP_CLICKED: stage ${process_state.stage}`);
+    console.log(`NEXT_STEP_CLICKED: step ${process_state.step}`);
   }
 
   if (msg.type === "PREV_STEP_CLICKED") {
-    process_state.first_stage[1] -= 1;
+    process_state.step -= 1;
+    console.log(`NEXT_STEP_CLICKED: stage ${process_state.stage}`);
+    console.log(`NEXT_STEP_CLICKED: step ${process_state.step}`);
   }
 
   if (msg.type === "LOAD_ALART") {
@@ -537,7 +556,7 @@ function addToStorage(key, value) {
       chrome.storage.local.set(payload, () => {
         if (chrome.runtime.lastError)
           return reject(new Error(chrome.runtime.lastError.message));
-        console.log(`Added to storage: ${key}`, value);
+        // console.log(`Added to storage: ${key}`, value);
         resolve(true);
       });
     } catch (err) {
