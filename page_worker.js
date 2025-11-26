@@ -94,6 +94,4 @@
     console.log(message)
   }
 });
-
-
 })();

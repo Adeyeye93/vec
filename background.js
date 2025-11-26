@@ -30,6 +30,7 @@ importScripts("bg-navigation.js"); // legacy-style import for worker scope
 // or you can dynamically `fetch`+`eval` or combine code during build
 var last_url = "";
 var user_digressed = false;
+var page_title
 
 let process_state = {
   stage: 0,
@@ -45,17 +46,19 @@ let tutorialState = {
 
 // Receive START_PROCESS from popup.js with all tutorial steps
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "START_PROCESS") {
+  if (message.type === "START_PROCESS" && tutorialState.isActive === false) {
     tutorialState.isActive = true;
     tutorialState.steps = message.steps || [];
     tutorialState.currentPage = 0;
     tutorialState.completedPages.clear();
     process_state.stage = 1;
+    
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0) {
         chrome.tabs.get(tabs[0].id, (tab) => {
           const firstPageLink = tab.url;
+          page_title = tab.title;
           addToStorage("FirstPage", firstPageLink).catch((er) => {
             console.log(er);
           });
@@ -94,7 +97,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       );
     });
-  }
+  } else if (message.type === "START_PROCESS" && tutorialState.isActive === true) {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs.length > 0) {
+      const tabId = tabs[0].id;  // Extract the ID from the array
+      
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: "check_flash_injected" },
+        (response) => {
+          if (chrome.runtime.lastError || !response) {
+            chrome.scripting.executeScript(
+              {
+                target: { tabId: tabId },
+                files: ["flash.js"],
+              },
+              () => {
+                chrome.tabs.sendMessage(tabId, {
+                  type: "showFlashToast",
+                  message: `Tutorial already in progress on "${page_title}", please complete or cancel it first.`,
+                  duration: 3000,
+                });
+              }
+            );
+          } else {
+            chrome.tabs.sendMessage(tabId, {
+              type: "showFlashToast",
+              message: `Tutorial already in progress on "${page_title}", please complete or cancel it first.`,
+              duration: 3000,
+            });
+          }
+        }
+      );
+    }
+  });
+}
 });
 
 // Receive PAGE_WILL_CHANGE from content script when user interacts with page-change element
@@ -238,7 +275,8 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     lastClickSelector = null;
     return true;
   }
-  if (msg.type === "url_change" && sender.tab && sender.tab.id) {
+  let activeTabId = await getFromStorage("activeTabId");
+  if (msg.type === "url_change" && sender.tab && sender.tab.id && activeTabId == sender.tab.id) {
     lastClickSelector = msg.selector;
     const newUrl = msg.new_url || "";
     // previous page index (the page the user came from)
@@ -489,6 +527,10 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
                   });
                   chrome.tabs.sendMessage(tabs[0].id, {
                     type: "SETUP_PAGE_LISTENERS",
+                    steps: currentPageSteps,
+                  });
+                  chrome.tabs.sendMessage(tabs[0].id, {
+                    type: "REMOVE_DOTS",
                     steps: currentPageSteps,
                   });
                 } else if (process_state.stage === 2) {

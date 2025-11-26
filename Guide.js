@@ -71,6 +71,24 @@
       '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>',
   };
 
+  // Typing animation function
+  let typingTimeout;
+  function typeText(element, text, speed = 30) {
+    clearTimeout(typingTimeout);
+    element.textContent = "";
+    let index = 0;
+
+    function type() {
+      if (index < text.length) {
+        element.textContent += text.charAt(index);
+        index++;
+        typingTimeout = setTimeout(type, speed);
+      }
+    }
+
+    type();
+  }
+
   window.startTutorial = function (steps) {
     let currentStep = 0;
     let currentElement = null;
@@ -123,7 +141,9 @@
 
       setTimeout(() => {
         updatePosition(targetElement, step.offsetX || 10, step.offsetY || 10);
-        instructionText.textContent = step.instruction;
+
+        // Use typing animation for instruction text
+        typeText(instructionText, step.instruction, 30);
 
         // Set action icon
         const actionType = step.action || "default";
@@ -149,7 +169,7 @@
           .catch(() => {});
         window.endTutorial();
       } else {
-        console.log("NEXT clicked")
+        console.log("NEXT clicked");
         chrome.runtime
           .sendMessage({
             type: "NEXT_STEP_CLICKED",
@@ -182,8 +202,8 @@
       }
     });
 
-
     window.endTutorial = function () {
+      clearTimeout(typingTimeout);
       tutorialOverlay.classList.remove("active");
       highlightSpotlight.style.display = "none";
       tutorialBox.style.display = "none";
@@ -241,5 +261,5 @@
     })
     .catch(() => {});
 
-    console.log("Tutorial Spotlight content script initialized");
+  console.log("Tutorial Spotlight content script initialized");
 })();

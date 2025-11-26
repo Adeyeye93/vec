@@ -139,44 +139,26 @@
 
     return dots;
   };
-  addTutorialDots([
-  {
-        selector: '#target',
-            instruction: 'Click here to submit the form',
-            offsetX: 10,
-            offsetY: 10
+
+  
+  window.removeTutorialDots = function() {
+    const dots = document.querySelectorAll('.tutorial-dot');
+    dots.forEach(dot => dot.remove());
+    tooltip.remove();
+
+    if (scrollListener) {
+      window.removeEventListener('scroll', scrollListener);
+      scrollListener = null;
     }
+    if (resizeListener) {
+      window.removeEventListener('resize', resizeListener);
+      resizeListener = null;
+    }
+  };
 
-    ,
-    {
-    selector: '#target2',
-        instruction: 'This is the main heading',
-        offsetX: 0,
-        offsetY: 15
-}
-
-,
-{
-selector: '#target3',
-    instruction: 'Click here to submit the form',
-    offsetX: 10,
-    offsetY: 10
-}
-
-,
-{
-selector: '#target4',
-    instruction: 'This is the main heading',
-    offsetX: 0,
-    offsetY: 15
-}
-
-,
-{
-selector: '#target5',
-    instruction: 'Click here to submit the form',
-    offsetX: 10,
-    offsetY: 10
-}
-]);
+  chrome.runtime.onMessage.addListener((msg, sender) => {
+    if (msg.type === "REMOVE_DOTS") {
+      window.removeTutorialDots();
+    }
+  });
 })();
