@@ -90,8 +90,8 @@
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "URL_CHANGE_CHECK_RESULT") {
-    console.log(message)
-  }
-});
+    if (message.type === "URL_CHANGE_CHECK_RESULT") {
+      //(message)
+    }
+  });
 })();

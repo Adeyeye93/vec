@@ -1,17 +1,14 @@
-
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "showTutorialInterruptedToast") {
-    
     showTutorialToast();
-    sendResponse({ success: true });    
+    sendResponse({ success: true });
   }
 });
 
 function showTutorialToast() {
   // Create toast container
-  const toastContainer = document.createElement('div');
-  toastContainer.id = 'tutorial-toast-container';
+  const toastContainer = document.createElement("div");
+  toastContainer.id = "tutorial-toast-container";
   toastContainer.style.cssText = `
     position: fixed;
     bottom: 20px;
@@ -28,17 +25,18 @@ function showTutorialToast() {
   `;
 
   // Create message text
-  const messageText = document.createElement('p');
+  const messageText = document.createElement("p");
   messageText.style.cssText = `
     margin: 0 0 15px 0;
     font-size: 14px;
     color: #333;
     line-height: 1.5;
   `;
-  messageText.textContent = 'Tutorial interrupted - you navigated away from the expected path. Would you like to...';
+  messageText.textContent =
+    "Tutorial interrupted - you navigated away from the expected path. Would you like to...";
 
   // Create buttons container
-  const buttonsContainer = document.createElement('div');
+  const buttonsContainer = document.createElement("div");
   buttonsContainer.style.cssText = `
     display: flex;
     gap: 10px;
@@ -46,9 +44,9 @@ function showTutorialToast() {
   `;
 
   // Create Continue button
-  const continueBtn = document.createElement('button');
-  continueBtn.textContent = 'Continue';
-  continueBtn.id = 'tutorial-continue-btn';
+  const continueBtn = document.createElement("button");
+  continueBtn.textContent = "Continue";
+  continueBtn.id = "tutorial-continue-btn";
   continueBtn.style.cssText = `
     flex: 1;
     min-width: 80px;
@@ -62,13 +60,15 @@ function showTutorialToast() {
     font-weight: 500;
     transition: background-color 0.2s;
   `;
-  continueBtn.onmouseover = () => continueBtn.style.backgroundColor = '#45a049';
-  continueBtn.onmouseout = () => continueBtn.style.backgroundColor = '#4CAF50';
+  continueBtn.onmouseover = () =>
+    (continueBtn.style.backgroundColor = "#45a049");
+  continueBtn.onmouseout = () =>
+    (continueBtn.style.backgroundColor = "#4CAF50");
 
   // Create Restart button
-  const restartBtn = document.createElement('button');
-  restartBtn.textContent = 'Restart';
-  restartBtn.id = 'tutorial-restart-btn';
+  const restartBtn = document.createElement("button");
+  restartBtn.textContent = "Restart";
+  restartBtn.id = "tutorial-restart-btn";
   restartBtn.style.cssText = `
     flex: 1;
     min-width: 80px;
@@ -82,13 +82,13 @@ function showTutorialToast() {
     font-weight: 500;
     transition: background-color 0.2s;
   `;
-  restartBtn.onmouseover = () => restartBtn.style.backgroundColor = '#0b7dda';
-  restartBtn.onmouseout = () => restartBtn.style.backgroundColor = '#2196F3';
+  restartBtn.onmouseover = () => (restartBtn.style.backgroundColor = "#0b7dda");
+  restartBtn.onmouseout = () => (restartBtn.style.backgroundColor = "#2196F3");
 
   // Create Break Leave button
-  const breakBtn = document.createElement('button');
-  breakBtn.textContent = 'Break Leave';
-  breakBtn.id = 'tutorial-break-btn';
+  const breakBtn = document.createElement("button");
+  breakBtn.textContent = "Break Leave";
+  breakBtn.id = "tutorial-break-btn";
   breakBtn.style.cssText = `
     flex: 1;
     min-width: 80px;
@@ -102,13 +102,13 @@ function showTutorialToast() {
     font-weight: 500;
     transition: background-color 0.2s;
   `;
-  breakBtn.onmouseover = () => breakBtn.style.backgroundColor = '#da190b';
-  breakBtn.onmouseout = () => breakBtn.style.backgroundColor = '#f44336';
+  breakBtn.onmouseover = () => (breakBtn.style.backgroundColor = "#da190b");
+  breakBtn.onmouseout = () => (breakBtn.style.backgroundColor = "#f44336");
 
   // Add event listeners
-  continueBtn.addEventListener('click', handleContinue);
-  restartBtn.addEventListener('click', handleRestart);
-  breakBtn.addEventListener('click', handleBreak);
+  continueBtn.addEventListener("click", handleContinue);
+  restartBtn.addEventListener("click", handleRestart);
+  breakBtn.addEventListener("click", handleBreak);
 
   // Assemble toast
   buttonsContainer.appendChild(continueBtn);
@@ -120,9 +120,9 @@ function showTutorialToast() {
   document.body.appendChild(toastContainer);
 
   // Add animation keyframes
-  if (!document.querySelector('style[data-tutorial-toast]')) {
-    const style = document.createElement('style');
-    style.setAttribute('data-tutorial-toast', 'true');
+  if (!document.querySelector("style[data-tutorial-toast]")) {
+    const style = document.createElement("style");
+    style.setAttribute("data-tutorial-toast", "true");
     style.textContent = `
       @keyframes slideIn {
         from {
@@ -140,36 +140,42 @@ function showTutorialToast() {
 }
 
 function removeToast() {
-  const toast = document.getElementById('tutorial-toast-container');
+  const toast = document.getElementById("tutorial-toast-container");
   if (toast) {
-    toast.style.animation = 'slideIn 0.3s ease-out reverse';
-    toast.remove()
+    toast.style.animation = "slideIn 0.3s ease-out reverse";
+    toast.remove();
   }
 }
 
 // Event listener for Continue button
 function handleContinue(event) {
-  console.log('Continue button clicked');
+  //('Continue button clicked');
   removeToast();
-  chrome.runtime.sendMessage({
-        type: "CONTINUE_PROCESS"
-      }).catch(() => {});
+  chrome.runtime
+    .sendMessage({
+      type: "CONTINUE_PROCESS",
+    })
+    .catch(() => {});
 }
 
 // Event listener for Restart button
 function handleRestart(event) {
-  console.log('Restart button clicked');
+  //('Restart button clicked');
   removeToast();
-  chrome.runtime.sendMessage({
-        type: "RESTART_PROCESS"
-      }).catch(() => {});
+  chrome.runtime
+    .sendMessage({
+      type: "RESTART_PROCESS",
+    })
+    .catch(() => {});
 }
 
 // Event listener for Break Leave button
 function handleBreak(event) {
-  console.log('Break Leave button clicked');
+  //('Break Leave button clicked');
   removeToast();
-  chrome.runtime.sendMessage({
-        type: "BREAK_PROCESS"
-      }).catch(() => {});
+  chrome.runtime
+    .sendMessage({
+      type: "BREAK_PROCESS",
+    })
+    .catch(() => {});
 }

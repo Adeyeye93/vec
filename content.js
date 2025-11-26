@@ -1,18 +1,14 @@
-console.log("Content script running");
+//("Content script running");
 // Page Change Listener - Detects when user interacts with page-change elements
-(function() {
-  console.log("Page change listener loaded");
+(function () {
+  //("Page change listener loaded");
 
- 
-
-window.addEventListener('beforeunload', () => {
+  window.addEventListener("beforeunload", () => {
     chrome.runtime.sendMessage({
-        type: "NEW_LOAD",
-        url: window.location.href
+      type: "NEW_LOAD",
+      url: window.location.href,
     });
-});
-
-
+  });
 
   let pageChangeElements = [];
   let pageWontChangeElements = [];
@@ -21,7 +17,7 @@ window.addEventListener('beforeunload', () => {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "SETUP_PAGE_LISTENERS") {
       const steps = message.steps || [];
-      
+
       pageChangeElements = [];
       pageWontChangeElements = [];
 
@@ -31,23 +27,23 @@ window.addEventListener('beforeunload', () => {
           const element = document.querySelector(step.selector);
           if (element) {
             pageChangeElements.push(element);
-            console.log(`Registered page-change element: ${step.selector}`);
+            //(`Registered page-change element: ${step.selector}`);
           }
         }
-        
+
         // Elements that don't trigger page change
         if (step.wont_change_page) {
           const element = document.querySelector(step.selector);
           if (element) {
             pageWontChangeElements.push(element);
-            console.log(`Registered non-change element: ${step.selector}`);
+            //(`Registered non-change element: ${step.selector}`);
           }
         }
       });
 
       // Attach listeners to page-change elements
       pageChangeElements.forEach((element) => {
-        element.addEventListener('click', handlePageChange);
+        element.addEventListener("click", handlePageChange);
       });
 
       sendResponse({ status: "Page listeners setup" });
@@ -55,19 +51,20 @@ window.addEventListener('beforeunload', () => {
   });
 
   function handlePageChange(event) {
-    console.log("Page change element clicked!");
-    
+    //("Page change element clicked!");
+
     // Notify background script that page will change
-    chrome.runtime.sendMessage({
-      type: "PAGE_WILL_CHANGE"
-    }, (response) => {
-      console.log("Background response:", response);
-    });
+    chrome.runtime.sendMessage(
+      {
+        type: "PAGE_WILL_CHANGE",
+      },
+      (response) => {
+        //("Background response:", response);
+      }
+    );
   }
 
-  
-  window.addEventListener('beforeunload', () => {
-  
+  window.addEventListener("beforeunload", () => {
     chrome.runtime.sendMessage({ type: "LOAD_ALART" });
   });
 })();

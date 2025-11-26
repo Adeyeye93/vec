@@ -1,4 +1,4 @@
-// Tutorial Spotlight - Content Script
+// Tutorial Spotlight - Content Script with Progress Ring
 (function () {
   const tutorialOverlay = document.createElement("div");
   tutorialOverlay.id = "tutorial-overlay";
@@ -9,12 +9,16 @@
   const headerContainer = document.createElement("div");
   headerContainer.id = "tutorial-header";
 
+  const progressRing = document.createElement("div");
+  progressRing.id = "tutorial-progress-ring";
+
   const instructionText = document.createElement("p");
   instructionText.id = "tutorial-instruction";
 
   const actionIcon = document.createElement("span");
   actionIcon.id = "tutorial-action-icon";
 
+  headerContainer.appendChild(progressRing);
   headerContainer.appendChild(actionIcon);
   headerContainer.appendChild(instructionText);
 
@@ -49,6 +53,34 @@
   const tutorialStyle = document.createElement("style");
   tutorialStyle.textContent = `
     @import url('${chrome.runtime.getURL("tutorial.css")}');
+    
+    #tutorial-progress-ring {
+      display: flex;
+      gap: 2px;
+      margin-right: 8px;
+    }
+
+    .progress-segment {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #d0d0d0;
+      transition: background-color 0.3s ease;
+    }
+
+    .progress-segment.completed {
+      background-color: #4CAF50;
+    }
+
+    .progress-segment.active {
+      background-color: #4CAF50;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
   `;
   document.head.appendChild(tutorialStyle);
 
@@ -89,9 +121,36 @@
     type();
   }
 
+  function createProgressRing(totalSteps) {
+    progressRing.innerHTML = "";
+    for (let i = 0; i < totalSteps; i++) {
+      const segment = document.createElement("div");
+      segment.className = "progress-segment";
+      segment.id = `progress-segment-${i}`;
+      progressRing.appendChild(segment);
+    }
+  }
+
+  function updateProgressRing(currentStepIndex, totalSteps) {
+    for (let i = 0; i < totalSteps; i++) {
+      const segment = document.getElementById(`progress-segment-${i}`);
+      if (segment) {
+        segment.classList.remove("completed", "active");
+        if (i < currentStepIndex) {
+          segment.classList.add("completed");
+        } else if (i === currentStepIndex) {
+          segment.classList.add("active");
+        }
+      }
+    }
+  }
+
   window.startTutorial = function (steps) {
     let currentStep = 0;
     let currentElement = null;
+
+    // Create progress ring with total steps
+    createProgressRing(steps.length);
 
     function updatePosition(element, offsetX, offsetY) {
       const rect = element.getBoundingClientRect();
@@ -150,6 +209,9 @@
         actionIcon.innerHTML =
           actionIcons[actionType] || actionIcons["default"];
 
+        // Update progress ring
+        updateProgressRing(stepIndex, steps.length);
+
         // Update button states
         prevBtn.disabled = stepIndex === 0;
         nextBtn.textContent =
@@ -160,8 +222,24 @@
     }
 
     nextBtn.addEventListener("click", function () {
+      const currentStepData = steps[currentStep];
+
+      //(currentStepData.conclude_tutorial);
+
+      // Check if this step concludes the tutorial
+      if (currentStepData.conclude_tutorial) {
+        //("Tutorial concluded!");
+        chrome.runtime
+          .sendMessage({
+            type: "TUTORIAL_CONCLUDED",
+          })
+          .catch(() => {});
+        window.endTutorial();
+        return;
+      }
+
       if (currentStep === steps.length - 1) {
-        console.log("NEXT clicked");
+        //("NEXT clicked - Final step");
         chrome.runtime
           .sendMessage({
             type: "NEXT_STEP_CLICKED",
@@ -169,7 +247,7 @@
           .catch(() => {});
         window.endTutorial();
       } else {
-        console.log("NEXT clicked");
+        //("NEXT clicked");
         chrome.runtime
           .sendMessage({
             type: "NEXT_STEP_CLICKED",
@@ -181,7 +259,7 @@
 
     prevBtn.addEventListener("click", function () {
       showStep(currentStep - 1);
-      console.log("PREV clicked");
+      //("PREV clicked");
 
       chrome.runtime
         .sendMessage({
@@ -226,8 +304,8 @@
       const pageNumber = message.pageNumber;
       const totalPages = message.totalPages;
 
-      console.log(`Loading tutorial page ${pageNumber + 1}/${totalPages}`);
-      console.log(pageSteps);
+      //(`Loading tutorial page ${pageNumber + 1}/${totalPages}`);
+      //(pageSteps);
 
       if (pageSteps.length > 0) {
         window.startTutorial(pageSteps);
@@ -251,7 +329,7 @@
 
     if (message.type === "TUTORIAL_COMPLETE") {
       window.endTutorial();
-      console.log("Tutorial completed!");
+      //("Tutorial completed!");
     }
   });
 
@@ -261,5 +339,5 @@
     })
     .catch(() => {});
 
-  console.log("Tutorial Spotlight content script initialized");
+  //("Tutorial Spotlight content script initialized");
 })();

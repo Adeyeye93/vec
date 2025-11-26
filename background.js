@@ -1,36 +1,36 @@
 // Background Script - Tutorial State Manager
-console.log("Background script running");
+//("Background script running");
 addToStorage("Page", 0).catch((er) => {
-  console.log(er);
+  //(er);
 });
 addToStorage("FromToast?", "NO").catch((er) => {
-  console.log(er);
+  //(er);
 });
 addToStorage("FirstPage", "").catch((er) => {
-  console.log(er);
+  //(er);
 });
 addToStorage("PageMemory", "").catch((er) => {
-  console.log(er);
+  //(er);
 });
 addToStorage("activeTabId", -1).catch((er) => {
-  console.log(er);
+  //(er);
 });
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === "NEW_LOAD") {
     addToStorage("PageMemory", msg.url).catch((er) => {
-      console.log(er);
+      //(er);
     });
   }
 });
 
 var Di_step = null;
 // background.js (service worker)
-importScripts("bg-navigation.js"); // legacy-style import for worker scope
 // or you can dynamically `fetch`+`eval` or combine code during build
 var last_url = "";
 var user_digressed = false;
-var page_title
+var page_title;
+var activeTabId
 
 let process_state = {
   stage: 0,
@@ -52,18 +52,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     tutorialState.currentPage = 0;
     tutorialState.completedPages.clear();
     process_state.stage = 1;
-    
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0) {
         chrome.tabs.get(tabs[0].id, (tab) => {
           const firstPageLink = tab.url;
           page_title = tab.title;
+          activeTabId = tabs[0].id;
           addToStorage("FirstPage", firstPageLink).catch((er) => {
-            console.log(er);
+            //(er);
           });
           addToStorage("activeTabId", tabs[0].id).catch((er) => {
-            console.log(er);
+            //(er);
           });
         });
       }
@@ -97,47 +97,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       );
     });
-  } else if (message.type === "START_PROCESS" && tutorialState.isActive === true) {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs.length > 0) {
-      const tabId = tabs[0].id;  // Extract the ID from the array
-      
-      chrome.tabs.sendMessage(
-        tabId,
-        { type: "check_flash_injected" },
-        (response) => {
-          if (chrome.runtime.lastError || !response) {
-            chrome.scripting.executeScript(
-              {
-                target: { tabId: tabId },
-                files: ["flash.js"],
-              },
-              () => {
-                chrome.tabs.sendMessage(tabId, {
-                  type: "showFlashToast",
-                  message: `Tutorial already in progress on "${page_title}", please complete or cancel it first.`,
-                  duration: 3000,
-                });
-              }
-            );
-          } else {
-            chrome.tabs.sendMessage(tabId, {
-              type: "showFlashToast",
-              message: `Tutorial already in progress on "${page_title}", please complete or cancel it first.`,
-              duration: 3000,
-            });
+  } else if (
+    message.type === "START_PROCESS" &&
+    tutorialState.isActive === true
+  ) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        const tabId = tabs[0].id; // Extract the ID from the array
+
+        chrome.tabs.sendMessage(
+          tabId,
+          { type: "check_flash_injected" },
+          (response) => {
+            if (chrome.runtime.lastError || !response) {
+              chrome.scripting.executeScript(
+                {
+                  target: { tabId: tabId },
+                  files: ["flash.js"],
+                },
+                () => {
+                  chrome.tabs.sendMessage(tabId, {
+                    type: "showFlashToast",
+                    message: `Tutorial already in progress on "${page_title}", please complete or cancel it first.`,
+                    duration: 3000,
+                  });
+                }
+              );
+            } else {
+              chrome.tabs.sendMessage(tabId, {
+                type: "showFlashToast",
+                message: `Tutorial already in progress on "${page_title}", please complete or cancel it first.`,
+                duration: 3000,
+              });
+            }
           }
-        }
-      );
-    }
-  });
-}
+        );
+      }
+    });
+  }
 });
 
 // Receive PAGE_WILL_CHANGE from content script when user interacts with page-change element
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "PAGE_WILL_CHANGE") {
-    console.log("PAGE_WILL_CHANGE received");
+    //("PAGE_WILL_CHANGE received");
     tutorialState.completedPages.add(tutorialState.currentPage);
     tutorialState.currentPage++;
     updateStorage("Page", 1);
@@ -145,7 +148,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     process_state.step = 2;
 
     if (tutorialState.currentPage < tutorialState.steps.length) {
-      console.log(`Moving to page ${tutorialState.currentPage + 1}`);
+      //(`Moving to page ${tutorialState.currentPage + 1}`);
 
       // Listen for the new page to load
       const listener = (details) => {
@@ -153,7 +156,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           tutorialState.isActive &&
           tutorialState.currentPage < tutorialState.steps.length
         ) {
-          console.log("New page loaded, sending tutorial data...");
+          //("New page loaded, sending tutorial data...");
 
           const nextPageSteps =
             tutorialState.steps[tutorialState.currentPage] || [];
@@ -195,7 +198,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ status: "Page change detected, waiting for new page..." });
     } else {
       tutorialState.isActive = false;
-      console.log("Tutorial completed!");
+      //("Tutorial completed!");
       sendResponse({ status: "Tutorial completed" });
     }
   }
@@ -275,8 +278,13 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     lastClickSelector = null;
     return true;
   }
-  let activeTabId = await getFromStorage("activeTabId");
-  if (msg.type === "url_change" && sender.tab && sender.tab.id && activeTabId == sender.tab.id) {
+  activeTabId = await getFromStorage("activeTabId");
+  if (
+    msg.type === "url_change" &&
+    sender.tab &&
+    sender.tab.id &&
+    activeTabId == sender.tab.id
+  ) {
     lastClickSelector = msg.selector;
     const newUrl = msg.new_url || "";
     // previous page index (the page the user came from)
@@ -338,7 +346,7 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     return;
   }
   if (msg.type === "CONTINUE_PROCESS") {
-    console.log("Continuing tutorial process to URL:", last_url);
+    //("Continuing tutorial process to URL:", last_url);
     updateStorage("FromToast?", "YES");
     const targetUrl = last_url;
     const tabId = sender && sender.tab && sender.tab.id;
@@ -360,7 +368,7 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
                   files: ["Guide.js"],
                 },
                 () => {
-                  console.log("Sending last step only:", lastOnly);
+                  //("Sending last step only:", lastOnly);
 
                   chrome.tabs.sendMessage(id, {
                     type: "LOAD_TUTORIAL",
@@ -534,7 +542,7 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
                     steps: currentPageSteps,
                   });
                 } else if (process_state.stage === 2) {
-                  console.log("Removing guide as tutorial is in dots stage.");
+                  //("Removing guide as tutorial is in dots stage.");
                   chrome.tabs.sendMessage(tabId, {
                     type: "REMOVE_GUIDE",
                   });
@@ -572,17 +580,38 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
 
   if (msg.type === "NEXT_STEP_CLICKED") {
     process_state.step += 1;
-    console.log(`NEXT_STEP_CLICKED: stage ${process_state.stage}`);
-    console.log(`NEXT_STEP_CLICKED: step ${process_state.step}`);
+    //(`NEXT_STEP_CLICKED: stage ${process_state.stage}`);
+    //(`NEXT_STEP_CLICKED: step ${process_state.step}`);
   }
 
   if (msg.type === "PREV_STEP_CLICKED") {
     process_state.step -= 1;
-    console.log(`NEXT_STEP_CLICKED: stage ${process_state.stage}`);
-    console.log(`NEXT_STEP_CLICKED: step ${process_state.step}`);
+    //(`NEXT_STEP_CLICKED: stage ${process_state.stage}`);
+    //(`NEXT_STEP_CLICKED: step ${process_state.step}`);
   }
 
-  if (msg.type === "LOAD_ALART") {
+  if (msg.type === "TUTORIAL_CONCLUDED") {
+    tutorialState.isActive = false;
+    tutorialState.currentPage = 0;
+    tutorialState.completedPages.clear();
+    updateStorage("Page", 0);
+    addToStorage("FromToast?", "NO").catch((er) => {
+      //(er);
+    });
+    addToStorage("FirstPage", "").catch((er) => {
+      //(er);
+    });
+    addToStorage("PageMemory", "").catch((er) => {
+      //(er);
+    });
+    addToStorage("activeTabId", -1).catch((er) => {
+      //(er);
+    });
+    process_state.stage = 0;
+    process_state.step = 2;
+    last_url = "";
+    user_digressed = false;
+    page_title = "";
   }
 });
 
@@ -598,7 +627,7 @@ function addToStorage(key, value) {
       chrome.storage.local.set(payload, () => {
         if (chrome.runtime.lastError)
           return reject(new Error(chrome.runtime.lastError.message));
-        // console.log(`Added to storage: ${key}`, value);
+        // //(`Added to storage: ${key}`, value);
         resolve(true);
       });
     } catch (err) {
@@ -614,7 +643,7 @@ function removeFromStorage(key) {
       chrome.storage.local.remove(key, () => {
         if (chrome.runtime.lastError)
           return reject(new Error(chrome.runtime.lastError.message));
-        console.log(`Removed from storage: ${key}`);
+        //(`Removed from storage: ${key}`);
         resolve(true);
       });
     } catch (err) {
@@ -649,7 +678,7 @@ function updateStorage(key, value) {
           : Number.parseInt(current, 10) || 0;
       const newValue = currentNum + (value === 1 ? 1 : -1);
       await addToStorage(key, newValue);
-      console.log(newValue);
+      //(newValue);
       return newValue;
     });
   } else {
@@ -685,7 +714,7 @@ function clearAllStorage() {
       chrome.storage.local.clear(() => {
         if (chrome.runtime.lastError)
           return reject(new Error(chrome.runtime.lastError.message));
-        console.log("Cleared all storage");
+        //("Cleared all storage");
         resolve(true);
       });
     } catch (err) {
