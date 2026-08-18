@@ -44,7 +44,16 @@ let tutorialState = {
   completedPages: new Set(),
 };
 
-// Receive START_PROCESS from popup.js with all tutorial steps
+// Listen for extension icon click
+chrome.action.onClicked.addListener((tab) => {
+  // Inject content script into the active tab
+  chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ['screen.js']
+  });
+});
+
+// Receive START_PROCESS from screen.js with all tutorial steps
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "START_PROCESS" && tutorialState.isActive === false) {
     tutorialState.isActive = true;
@@ -136,6 +145,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
   }
 });
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "RELAY_TO_CONTENT") {
+    // Get the active tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length === 0) {
+        sendResponse({ error: "No active tab found" });
+        return;
+      }
+
+      const activeTab = tabs[0];
+
+      // Send message to content script in the active tab
+      chrome.tabs.sendMessage(activeTab.id, request.message, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error sending to content script:",
+            chrome.runtime.lastError
+          );
+          sendResponse({ error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse(response);
+        }
+      });
+    });
+
+    // Return true to indicate we'll send response asynchronously
+    return true;
+  }
+});
 
 // Receive PAGE_WILL_CHANGE from content script when user interacts with page-change element
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -175,7 +213,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // Send tutorial steps
                 chrome.tabs.sendMessage(tabs[0].id, {
                   type: "LOAD_TUTORIAL",
-                  pageSteps: currentPageSteps,
+                  pageSteps: currentPageSteps, 
                   pageNumber: tutorialState.currentPage,
                   totalPages: tutorialState.steps.length,
                 });
@@ -197,9 +235,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.webNavigation.onCompleted.addListener(listener);
       sendResponse({ status: "Page change detected, waiting for new page..." });
     } else {
-      tutorialState.isActive = false;
-      //("Tutorial completed!");
-      sendResponse({ status: "Tutorial completed" });
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length === 0) {
+          sendResponse({ error: "No active tab found" });
+          return;
+        }
+
+        const activeTab = tabs[0];
+
+        // Send message to content script in the active tab
+        chrome.tabs.sendMessage(activeTab.id, { type: "GET_PAGE_DATA" }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "Error sending to content script:",
+              chrome.runtime.lastError
+            );
+            sendResponse({ error: chrome.runtime.lastError.message });
+          } else {
+            sendResponse(response);
+          }
+        });
+      });
+      return true;
     }
   }
 });
@@ -279,6 +337,7 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     return true;
   }
   activeTabId = await getFromStorage("activeTabId");
+
   if (
     msg.type === "url_change" &&
     sender.tab &&
@@ -344,7 +403,74 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     // clear lastClickSelector so it won't persist across unrelated actions
     lastClickSelector = null;
     return;
+  } 
+  if (
+    msg.type === "spa_url_change" &&
+    sender.tab &&
+    sender.tab.id &&
+    activeTabId == sender.tab.id  ) {
+
+    console.log("SPA URL change detected in background script.");
+
+    lastClickSelector = msg.selector;
+    const newUrl = msg.new_url || "";
+    // previous page index (the page the user came from)
+    const prevIndex = Math.max(0, tutorialState.currentPage - 1);
+    const prevPageSteps = tutorialState.steps[prevIndex] || [];
+    // infer expected selector for the "last thing the user should do" on the previous page:
+    // we assume the last step in prevPageSteps describes that action
+    let expectedSelector;
+    if (Array.isArray(prevPageSteps) && prevPageSteps.length) {
+      const lastStep = prevPageSteps[prevPageSteps.length - 1];
+      expectedSelector =
+        lastStep.selector || lastStep.expectedSelector || lastStep.target;
+    }
+
+    let fromtoast = await getFromStorage("FromToast?");
+
+    const selectorMatches =
+      lastClickSelector && expectedSelector
+        ? lastClickSelector === expectedSelector
+        : false;
+
+        console.log('selectorMatches:', lastClickSelector, expectedSelector, selectorMatches);
+    if (
+      !selectorMatches &&
+      lastClickSelector != null &&
+      tutorialState.isActive &&
+      fromtoast == "NO"    ) {
+      user_digressed = true;
+      chrome.scripting.executeScript(
+        {
+          target: { tabId: sender.tab.id },
+          files: ["toast.js"],
+        },
+        () => {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: "showTutorialInterruptedToast",
+            lastClickSelector,
+          });
+        }
+      );
+    } else {
+      last_url = msg.lastUrl || "";
+      if (sender && sender.tab && sender.tab.id !== undefined) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "URL_CHANGE_CHECK_RESULT",
+          expectedSelector: expectedSelector || null,
+          lastClickSelector,
+          selectorMatches,
+        });
+      }
+    }
+
+    // notify the content script (or popup) about the check result
+
+    // clear lastClickSelector so it won't persist across unrelated actions
+    lastClickSelector = null;
+    return;
   }
+
   if (msg.type === "CONTINUE_PROCESS") {
     //("Continuing tutorial process to URL:", last_url);
     updateStorage("FromToast?", "YES");
@@ -614,6 +740,8 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     page_title = "";
   }
 });
+
+
 
 // Background-safe storage using chrome.storage.local
 // Replace the content-script localStorage usage with this background script.

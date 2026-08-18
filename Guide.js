@@ -131,6 +131,18 @@
     }
   }
 
+  function getElementByXPath(path) {
+    return document.evaluate(
+      path,
+      document,
+      null,
+      XPathResult.FIRST_ORDERED_NODE_TYPE,
+      null
+    ).singleNodeValue;
+  }
+
+
+
   function updateProgressRing(currentStepIndex, totalSteps) {
     for (let i = 0; i < totalSteps; i++) {
       const segment = document.getElementById(`progress-segment-${i}`);
@@ -188,7 +200,7 @@
       }
 
       const step = steps[stepIndex];
-      const targetElement = document.querySelector(step.selector);
+      const targetElement = getElementByXPath(step.selector);
 
       if (!targetElement) {
         console.warn(`Element not found: ${step.selector}`);
@@ -224,11 +236,11 @@
     nextBtn.addEventListener("click", function () {
       const currentStepData = steps[currentStep];
 
-      //(currentStepData.conclude_tutorial);
+      console.log(currentStepData.conclude_tutorial);
 
       // Check if this step concludes the tutorial
       if (currentStepData.conclude_tutorial) {
-        //("Tutorial concluded!");
+        console.log("Tutorial concluded!");
         chrome.runtime
           .sendMessage({
             type: "TUTORIAL_CONCLUDED",
@@ -239,7 +251,7 @@
       }
 
       if (currentStep === steps.length - 1) {
-        //("NEXT clicked - Final step");
+        console.log("NEXT clicked - Final step");
         chrome.runtime
           .sendMessage({
             type: "NEXT_STEP_CLICKED",
@@ -247,7 +259,7 @@
           .catch(() => {});
         window.endTutorial();
       } else {
-        //("NEXT clicked");
+        console.log("NEXT clicked");
         chrome.runtime
           .sendMessage({
             type: "NEXT_STEP_CLICKED",
@@ -259,7 +271,7 @@
 
     prevBtn.addEventListener("click", function () {
       showStep(currentStep - 1);
-      //("PREV clicked");
+      console.log("PREV clicked");
 
       chrome.runtime
         .sendMessage({
@@ -304,8 +316,8 @@
       const pageNumber = message.pageNumber;
       const totalPages = message.totalPages;
 
-      //(`Loading tutorial page ${pageNumber + 1}/${totalPages}`);
-      //(pageSteps);
+      console.log(`Loading tutorial page ${pageNumber + 1}/${totalPages}`);
+      console.log(pageSteps);
 
       if (pageSteps.length > 0) {
         window.startTutorial(pageSteps);
@@ -329,7 +341,7 @@
 
     if (message.type === "TUTORIAL_COMPLETE") {
       window.endTutorial();
-      //("Tutorial completed!");
+      console.log("Tutorial completed!");
     }
   });
 
@@ -339,5 +351,5 @@
     })
     .catch(() => {});
 
-  //("Tutorial Spotlight content script initialized");
+  console.log("Tutorial Spotlight content script initialized");
 })();

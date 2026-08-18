@@ -1,0 +1,422 @@
+@import url('https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+#vector-popup-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: start;
+    justify-content: flex-end;
+    padding: 2px 20px;
+    z-index: 999999;
+    background: transparent;
+    font-family: "Asap Condensed", sans-serif;
+    pointer-events: none;
+}
+
+/* Panel */
+.v-panel {
+    position: relative;
+    width: 380px;
+    margin-top: 26px;
+    /* room for the tab bubbles to peek above the header */
+    pointer-events: auto;
+    /* No background here on purpose — the header's shape comes entirely
+       from the SVG path below, and wherever that path doesn't paint
+       (the angled cut, the tab gaps) needs to stay see-through, not show
+       a rectangular white fill sitting behind it. Only .v-panel-screen
+       (the body, below the header) is solid. */
+    border-radius: 26px;
+    box-shadow: 0 24px 60px rgba(20, 30, 70, 0.18), 0 0 0 1px rgba(27, 31, 35, 0.06);
+    display: flex;
+    flex-direction: column;
+    animation: v-wrapper-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes v-wrapper-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ---------- Header: curvy blue band + tab bubbles ---------- */
+
+.v-panel-header {
+    position: relative;
+    height: 46px;
+    flex: 0 0 auto;
+}
+
+/* The header shape (rounded band + two tab humps, with the connectors
+   between them curving smoothly rather than the tabs just floating on
+   top) is drawn as one SVG path — see vector-ai-contract's sibling doc,
+   or just: it's generated geometry, not hand-drawn. Coordinates below
+   (top offset, tab left positions) are derived from that same path and
+   must stay in sync with it if the header size ever changes. */
+.v-header-shape {
+    position: absolute;
+    top: -26px;
+    left: 0;
+    width: 380px;
+    height: 72px;
+    display: block;
+    filter: drop-shadow(0 10px 20px rgba(20, 30, 70, 0.18));
+}
+
+.v-tab {
+    appearance: none;
+    position: absolute;
+    top: -15px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: #ffffff;
+    color: #4169e1;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(20, 30, 70, 0.25);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.v-tab:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(20, 30, 70, 0.3);
+}
+
+.v-tab-1 {
+    left: 259px;
+}
+
+.v-tab-2 {
+    left: 319px;
+}
+
+.close-btn {
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    width: 26px;
+    height: 26px;
+    background: rgba(255, 255, 255, 0.22);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+    background: rgba(255, 255, 255, 0.38);
+    transform: scale(1.1);
+}
+
+/* ---------- Body ---------- */
+
+.v-panel-screen {
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 0 26px 26px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+}
+
+.screen-content {
+    width: 100%;
+    padding: 28px 24px;
+    font-size: 16px;
+    color: #333;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.screen-content.v-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ---------- Prompt ---------- */
+
+.v-prompt {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+}
+
+.v-title {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 700;
+    color: #1c2440;
+    text-align: left;
+}
+
+.v-sub {
+    margin: 0 0 6px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: #64709c;
+    text-align: left;
+}
+
+.v-textarea {
+    width: 100%;
+    resize: none;
+    border-radius: 16px;
+    border: 1.5px solid rgba(65, 105, 225, 0.18);
+    background: white;
+    padding: 14px 16px;
+    font-family: "Asap Condensed", sans-serif;
+    font-size: 15px;
+    color: #1c2440;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 1px 2px rgba(20, 30, 70, 0.04);
+}
+
+.v-textarea:focus {
+    border-color: #4169e1;
+    box-shadow: 0 0 0 4px rgba(65, 105, 225, 0.12);
+}
+
+.v-textarea::placeholder {
+    color: #a4acc9;
+}
+
+.v-btn {
+    appearance: none;
+    border: none;
+    border-radius: 14px;
+    padding: 13px 20px;
+    font-family: "Asap Condensed", sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: white;
+    background: linear-gradient(135deg, #4169e1 0%, #5b8def 100%);
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(65, 105, 225, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.v-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(65, 105, 225, 0.4);
+}
+
+.v-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.v-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.v-btn-ghost {
+    background: #ffffff;
+    color: #4169e1;
+    border: 1.5px solid rgba(65, 105, 225, 0.25);
+    box-shadow: none;
+}
+
+.v-btn-ghost:hover:not(:disabled) {
+    background: rgba(65, 105, 225, 0.06);
+    box-shadow: none;
+}
+
+.v-hint {
+    margin: 0;
+    font-size: 12px;
+    color: #a4acc9;
+    text-align: center;
+}
+
+/* ---------- History ---------- */
+
+.v-history {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+}
+
+.v-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.v-history-item {
+    appearance: none;
+    border: 1.5px solid rgba(65, 105, 225, 0.14);
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.v-history-item:hover {
+    border-color: #4169e1;
+    transform: translateY(-1px);
+}
+
+.v-history-goal {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1c2440;
+}
+
+.v-history-date {
+    font-size: 12px;
+    color: #a4acc9;
+}
+
+/* ---------- Generating ---------- */
+
+.v-generating {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+}
+
+#vecCanvas {
+    filter: drop-shadow(0 6px 16px rgba(65, 105, 225, 0.3));
+}
+
+.v-status {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 500;
+    color: #4a5580;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.v-status.v-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ---------- Error ---------- */
+
+.v-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.v-error-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(224, 63, 84, 0.12);
+    color: #e03f54;
+    font-size: 22px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.v-error-text {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.45;
+    color: #4a5580;
+}
+
+/* ---------- Ready ---------- */
+
+.v-ready {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.v-check {
+    width: 64px;
+    height: 64px;
+}
+
+.v-check-circle {
+    stroke: #4169e1;
+    stroke-width: 3;
+    stroke-dasharray: 151;
+    stroke-dashoffset: 151;
+    animation: v-check-circle 0.5s ease forwards;
+}
+
+.v-check-mark {
+    stroke: #4169e1;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: v-check-mark 0.35s ease 0.4s forwards;
+}
+
+@keyframes v-check-circle {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes v-check-mark {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.v-ready-text {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1c2440;
+}

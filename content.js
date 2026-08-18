@@ -12,6 +12,18 @@
 
   let pageChangeElements = [];
   let pageWontChangeElements = [];
+  
+
+  function getElementByXPath(path) {
+    return document.evaluate(
+      path,
+      document,
+      null,
+      XPathResult.FIRST_ORDERED_NODE_TYPE,
+      null
+    ).singleNodeValue;
+  }
+
 
   // Listen for tutorial steps that include page-change metadata
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -24,7 +36,7 @@
       steps.forEach((step) => {
         // Elements that trigger page change
         if (step.will_change_page) {
-          const element = document.querySelector(step.selector);
+          const element = getElementByXPath(step.selector);
           if (element) {
             pageChangeElements.push(element);
             //(`Registered page-change element: ${step.selector}`);
@@ -33,7 +45,7 @@
 
         // Elements that don't trigger page change
         if (step.wont_change_page) {
-          const element = document.querySelector(step.selector);
+          const element = getElementByXPath(step.selector);
           if (element) {
             pageWontChangeElements.push(element);
             //(`Registered non-change element: ${step.selector}`);
@@ -54,14 +66,9 @@
     //("Page change element clicked!");
 
     // Notify background script that page will change
-    chrome.runtime.sendMessage(
-      {
-        type: "PAGE_WILL_CHANGE",
-      },
-      (response) => {
-        //("Background response:", response);
-      }
-    );
+    chrome.runtime.sendMessage({
+      type: "PAGE_WILL_CHANGE",
+    });
   }
 
   window.addEventListener("beforeunload", () => {

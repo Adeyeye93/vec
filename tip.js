@@ -84,8 +84,20 @@
       });
     }
 
+    
+  function getElementByXPath(path) {
+    return document.evaluate(
+      path,
+      document,
+      null,
+      XPathResult.FIRST_ORDERED_NODE_TYPE,
+      null
+    ).singleNodeValue;
+  }
+
+
     steps.forEach((step, index) => {
-      const targetElement = document.querySelector(step.selector);
+      const targetElement = getElementByXPath(step.selector);
 
       if (!targetElement) {
         console.warn(`Element not found: ${step.selector}`);
